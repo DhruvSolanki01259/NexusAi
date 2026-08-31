@@ -54,7 +54,7 @@ export default function AboutPage() {
   return (
     <div className="bg-[#272d2d]">
       <section className="relative overflow-hidden border-b border-[#414949] bg-[#0b0d0d]">
-        <div className="pointer-events-none absolute left-1/2 top-0 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-[#23ce6b]/[0.045] blur-[120px]" />
+        <div className="pointer-events-none absolute left-1/2 top-0 h-125 w-175 -translate-x-1/2 rounded-full bg-[#23ce6b]/4.5 blur-[120px]" />
 
         <div className="relative mx-auto max-w-5xl px-6 py-24 text-center lg:px-8 lg:py-32">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#414949] bg-[#161a1a] px-4 py-2">

@@ -5,12 +5,28 @@ interface PublicLayoutProps {
   children: ReactNode;
 }
 
-export default function PublicLayout({ children }: PublicLayoutProps) {
+interface User {
+  name?: string | null;
+  email?: string | null;
+}
+
+export default async function PublicLayout({ children }: PublicLayoutProps) {
+  // const user: User | null = null;
+  const user: User | null = {
+    name: "Dhruv Solanki",
+    email: "dhruvsolanki0129@gmail.com",
+  };
+  const isAuthenticated = Boolean(user);
+
   return (
     <div className="min-h-screen bg-[#272d2d] text-[#edf5fc]">
       <header className="sticky top-0 z-50 border-b border-[#414949] bg-[#0b0d0d]/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-8">
-          <Link href="/" className="group flex items-center gap-3">
+          <Link
+            href="/"
+            className="group flex items-center gap-3"
+            aria-label="NEXUS AI home"
+          >
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#23ce6b] text-sm font-bold text-[#101512] transition-transform duration-200 group-hover:scale-105">
               N
             </div>
@@ -51,10 +67,10 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
           </nav>
 
           <Link
-            href="/"
+            href={isAuthenticated ? "/chat" : "/signup"}
             className="rounded-full bg-[#23ce6b] px-5 py-2.5 text-sm font-semibold text-[#101512] transition-all duration-200 hover:bg-[#32dc79] hover:shadow-[0_0_28px_rgba(35,206,107,0.2)]"
           >
-            Get Started
+            {isAuthenticated ? "Open NEXUS" : "Get Started"}
           </Link>
         </div>
       </header>
@@ -64,8 +80,6 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
       <footer className="border-t border-[#414949] bg-[#0b0d0d]">
         <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
           <div className="grid gap-12 md:grid-cols-4">
-            {/* Brand */}
-
             <div className="md:col-span-2">
               <Link href="/" className="inline-flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#23ce6b] text-sm font-bold text-[#101512]">
