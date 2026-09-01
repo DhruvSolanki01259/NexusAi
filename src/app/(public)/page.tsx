@@ -3,19 +3,16 @@ import {
   ArrowRight,
   Brain,
   Check,
-  Clock3,
   MessageSquare,
   Sparkles,
   Wrench,
 } from "lucide-react";
+import { workflow } from "@/langgraph/workflow";
+import { HumanMessage } from "langchain";
 
 interface User {
   name?: string | null;
   email?: string | null;
-}
-
-interface LandingPageProps {
-  user?: User | null;
 }
 
 const capabilities = [
@@ -70,6 +67,15 @@ export default async function LandingPage() {
 
   const isAuthenticated = Boolean(user);
 
+  // WORKFLOW TESTING
+  console.log(`PUBLIC LANDING PAGE`);
+  const config = { configurable: { thread_id: "123" } };
+  const response = await workflow.invoke(
+    { messages: [new HumanMessage("hi, my name is dhruv solanki")] },
+    config,
+  );
+  console.log(response);
+
   return (
     <main className="bg-[#272d2d] text-[#edf5fc]">
       {isAuthenticated ? (
@@ -85,11 +91,7 @@ function PublicLanding() {
   return (
     <>
       <section className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-[#0b0d0d]">
-        {/* Ambient glow */}
-
         <div className="pointer-events-none absolute left-1/2 top-1/3 h-125 w-175 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#23ce6b]/4.5 blur-[130px]" />
-
-        {/* Grid */}
 
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.025]"
@@ -222,6 +224,15 @@ function AuthenticatedLanding({ user }: { user: User }) {
   return (
     <>
       <section className="relative overflow-hidden bg-[#0b0d0d]">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.035]"
+          style={{
+            backgroundImage:
+              "linear-gradient(#edf5fc 1px, transparent 1px), linear-gradient(90deg, #edf5fc 1px, transparent 1px)",
+            backgroundSize: "64px 64px",
+          }}
+        />
+
         <div className="pointer-events-none absolute -right-30 -top-45 h-125 w-125 rounded-full bg-[#23ce6b]/[0.035] blur-[120px]" />
 
         <div className="mx-auto max-w-6xl px-6 py-20 lg:px-8 lg:py-28">
