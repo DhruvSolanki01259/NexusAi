@@ -12,6 +12,8 @@ import {
   ShieldCheck,
   User,
 } from "lucide-react";
+import { authClient } from "@/lib/authentication/auth-client";
+import { useRouter } from "next/navigation";
 
 type AuthMode = "login" | "signup";
 
@@ -28,9 +30,12 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [error, setError] = useState("");
 
   const isAuthenticating = isLoading || isGoogleLoading;
+  const router = useRouter();
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (isAuthenticating) return;
 
     setError("");
     setIsLoading(true);
@@ -38,32 +43,63 @@ export default function AuthForm({ mode }: AuthFormProps) {
     try {
       const formData = new FormData(event.currentTarget);
 
-      const email = formData.get("email");
-      const password = formData.get("password");
+      const email = String(formData.get("email") ?? "").trim();
+      const password = String(formData.get("password") ?? "");
+      const name = String(formData.get("name") ?? "").trim();
 
-      console.log({
-        email,
-        password,
-      });
+      if (!email || !password) {
+        setError("Please enter your email address and password.");
+        return;
+      }
 
-      /*
-       * Connect your authentication logic here.
-       *
-       * Login:
-       * await login(email, password);
-       *
-       * Signup:
-       * await signup(name, email, password);
-       */
+      if (!isLogin && !name) {
+        setError("Please enter your name.");
+        return;
+      }
 
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      if (password.length < 8) {
+        setError("Password must be at least 8 characters long.");
+        return;
+      }
 
-      // router.push("/chat");
-    } catch {
+      if (isLogin) {
+        const { error } = await authClient.signIn.email({
+          email,
+          password,
+          rememberMe: true,
+        });
+
+        if (error) {
+          setError(
+            error.message ||
+              "Unable to sign in. Please check your credentials and try again.",
+          );
+          return;
+        }
+      } else {
+        const { error } = await authClient.signUp.email({
+          name,
+          email,
+          password,
+        });
+
+        if (error) {
+          setError(
+            error.message ||
+              "Unable to create your account. Please check your details and try again.",
+          );
+          return;
+        }
+      }
+
+      router.push("/chat");
+    } catch (error) {
+      console.error("Authentication error:", error);
+
       setError(
         isLogin
-          ? "Unable to sign in. Please check your credentials and try again."
-          : "Unable to create your account. Please check your details and try again.",
+          ? "Unable to sign in. Please try again."
+          : "Unable to create your account. Please try again.",
       );
     } finally {
       setIsLoading(false);
@@ -71,21 +107,30 @@ export default function AuthForm({ mode }: AuthFormProps) {
   };
 
   const handleGoogleAuth = async () => {
+    if (isAuthenticating) return;
+
     setError("");
     setIsGoogleLoading(true);
 
     try {
-      /*
-       * Connect Google OAuth here.
-       *
-       * Example:
-       * await signInWithGoogle();
-       */
+      const { error } = await authClient.signIn.social({
+        provider: "google",
+        callbackURL: "/chat",
+      });
 
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      if (error) {
+        setError(
+          error.message ||
+            (isLogin
+              ? "Google sign-in failed. Please try again."
+              : "Google sign-up failed. Please try again."),
+        );
 
-      // router.push("/chat");
-    } catch {
+        return;
+      }
+    } catch (error) {
+      console.error("Google authentication error:", error);
+
       setError(
         isLogin
           ? "Google sign-in failed. Please try again."

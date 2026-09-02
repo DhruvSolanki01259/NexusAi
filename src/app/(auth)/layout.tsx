@@ -1,6 +1,17 @@
+import { getSession } from "@/lib/authentication/session";
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
-export default function AuthLayout({ children }: { children: ReactNode }) {
+export default async function AuthLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const session = await getSession();
+  if (session) {
+    redirect("/");
+  }
+
   return (
     <main className="min-h-screen bg-[#0b0d0d] text-[#edf5fc]">
       <div className="relative min-h-screen overflow-hidden">

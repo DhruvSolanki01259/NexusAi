@@ -1,22 +1,15 @@
-import Link from "next/link";
+import { getSession } from "@/lib/authentication/session";
+
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 interface PublicLayoutProps {
   children: ReactNode;
 }
 
-interface User {
-  name?: string | null;
-  email?: string | null;
-}
-
 export default async function PublicLayout({ children }: PublicLayoutProps) {
-  // const user: User | null = null;
-  const user: User | null = {
-    name: "Dhruv Solanki",
-    email: "dhruvsolanki0129@gmail.com",
-  };
-  const isAuthenticated = Boolean(user);
+  const session = await getSession();
+  const isAuthenticated = Boolean(session);
 
   return (
     <div className="min-h-screen bg-[#272d2d] text-[#edf5fc]">

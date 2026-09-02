@@ -1,3 +1,5 @@
+import { getSession } from "@/lib/authentication/session";
+
 import Link from "next/link";
 import {
   ArrowRight,
@@ -7,8 +9,6 @@ import {
   Sparkles,
   Wrench,
 } from "lucide-react";
-import { workflow } from "@/langgraph/workflow";
-import { HumanMessage } from "langchain";
 
 interface User {
   name?: string | null;
@@ -59,30 +59,12 @@ const quickActions = [
 ];
 
 export default async function LandingPage() {
-  // const user: User | null = null;
-  const user: User | null = {
-    name: "Dhruv Solanki",
-    email: "dhruvsolanki0129@gmail.com",
-  };
-
-  const isAuthenticated = Boolean(user);
-
-  // WORKFLOW TESTING
-  console.log(`PUBLIC LANDING PAGE`);
-  const config = { configurable: { thread_id: "123" } };
-  const response = await workflow.invoke(
-    { messages: [new HumanMessage("hi, my name is dhruv solanki")] },
-    config,
-  );
-  console.log(response);
+  const session = await getSession();
+  const user = session?.user;
 
   return (
     <main className="bg-[#272d2d] text-[#edf5fc]">
-      {isAuthenticated ? (
-        <AuthenticatedLanding user={user} />
-      ) : (
-        <PublicLanding />
-      )}
+      {user ? <AuthenticatedLanding user={user} /> : <PublicLanding />}
     </main>
   );
 }
