@@ -1,7 +1,15 @@
-import React from "react";
+import ChatConversation from "@/components/chat/ChatConversation";
 
-const ChatId = () => {
-  return <div>ChatId</div>;
-};
+interface ConversationPageProps {
+  params: Promise<{
+    id: string;
+  }>;
+}
 
-export default ChatId;
+export default async function ConversationPage({
+  params,
+}: ConversationPageProps) {
+  const { id } = await params;
+
+  return <ChatConversation conversationId={id} />;
+}

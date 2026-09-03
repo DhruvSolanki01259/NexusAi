@@ -7,7 +7,7 @@ export const proxy = (request: NextRequest) => {
 
   const isAuthRoute = pathname === "/login" || pathname === "/signup";
   const isProtectedRoute =
-    pathname.startsWith("/chat") || pathname.startsWith("/settings");
+    pathname.startsWith("/chat") || pathname.startsWith("/profile");
 
   if (sessionCookie && isAuthRoute) {
     return NextResponse.redirect(new URL("/", request.url));
@@ -21,5 +21,5 @@ export const proxy = (request: NextRequest) => {
 };
 
 export const config = {
-  matcher: ["/login", "/signup", "/chat/:path*", "/settings/:path*"],
+  matcher: ["/login", "/signup", "/chat/:path*", "/profile/:path*"],
 };
