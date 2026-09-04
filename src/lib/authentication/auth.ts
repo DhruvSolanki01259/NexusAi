@@ -61,4 +61,10 @@ export const auth = betterAuth({
       clientSecret: GoogleClientSecret,
     },
   },
+
+  user: {
+    deleteUser: {
+      enabled: true,
+    },
+  },
 });

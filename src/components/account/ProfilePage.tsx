@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 
 import {
   Brain,
-  ChevronRight,
   LogOut,
   Mail,
   MessageSquare,
@@ -17,6 +16,11 @@ import {
 } from "lucide-react";
 
 import { authClient } from "@/lib/authentication/auth-client";
+import { ProfileSkeleton } from "../profile/ProfileSkeleton";
+import { SectionHeading } from "../settings/SectionHeading";
+import { StatCard } from "../profile/StatCard";
+import { AccountLink } from "../profile/AccountLink";
+import { DeleteDialog } from "../profile/DeleteDailog";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -203,9 +207,9 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={() => setIsDeleteOpen(true)}
-              className="flex w-full items-center gap-4 p-5 text-left transition-colors hover:bg-[#d95c5c]/[0.06] focus:bg-[#d95c5c]/[0.06] focus:outline-none"
+              className="flex w-full items-center gap-4 p-5 text-left transition-colors hover:bg-[#d95c5c]/6 focus:bg-[#d95c5c]/6 focus:outline-none"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#d95c5c]/[0.08] text-[#d95c5c]">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#d95c5c]/8 text-[#d95c5c]">
                 <Trash2 size={17} strokeWidth={1.8} />
               </div>
 
@@ -232,183 +236,6 @@ export default function ProfilePage() {
   );
 }
 
-function SectionHeading({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div>
-      <h2 className="text-sm font-semibold text-[#edf5fc]">{title}</h2>
-
-      <p className="mt-1 text-xs leading-5 text-[#697171]">{description}</p>
-    </div>
-  );
-}
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  indicator,
-}: {
-  icon: React.ComponentType<{
-    size?: number;
-    strokeWidth?: number;
-  }>;
-  label: string;
-  value: string;
-  indicator?: boolean;
-}) {
-  return (
-    <div className="rounded-2xl border border-[#414949] bg-[#161a1a] p-5">
-      <div className="flex items-center justify-between">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#303737] text-[#23ce6b]">
-          <Icon size={17} strokeWidth={1.8} />
-        </div>
-
-        {indicator !== undefined && (
-          <span
-            className={`flex items-center gap-1.5 text-xs ${
-              indicator ? "text-[#23ce6b]" : "text-[#697171]"
-            }`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                indicator ? "bg-[#23ce6b]" : "bg-[#697171]"
-              }`}
-            />
-
-            {indicator ? "Active" : "Off"}
-          </span>
-        )}
-      </div>
-
-      <p className="mt-5 text-2xl font-semibold tracking-tight text-[#edf5fc]">
-        {value}
-      </p>
-
-      <p className="mt-1 text-xs text-[#697171]">{label}</p>
-    </div>
-  );
-}
-
-function AccountLink({
-  href,
-  icon: Icon,
-  title,
-  description,
-  value,
-}: {
-  href: string;
-  icon: React.ComponentType<{
-    size?: number;
-    strokeWidth?: number;
-  }>;
-  title: string;
-  description: string;
-  value?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group flex items-center gap-4 p-5 transition-colors hover:bg-[#303737] focus:bg-[#303737] focus:outline-none"
-    >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#303737] text-[#23ce6b] transition-colors group-hover:bg-[#26342d]">
-        <Icon size={17} strokeWidth={1.8} />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-[#edf5fc]">{title}</p>
-
-        <p className="mt-1 max-w-xl text-xs leading-5 text-[#697171]">
-          {description}
-        </p>
-      </div>
-
-      {value && (
-        <span className="hidden shrink-0 text-xs text-[#23ce6b] sm:block">
-          {value}
-        </span>
-      )}
-
-      <ChevronRight
-        size={16}
-        strokeWidth={1.8}
-        className="shrink-0 text-[#5f6666] transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-[#8b9494]"
-      />
-    </Link>
-  );
-}
-
 function Divider() {
   return <div className="mx-5 border-t border-[#303737]" />;
-}
-
-function DeleteDialog({ onClose }: { onClose: () => void }) {
-  const handleAccountDeletion = async () => {
-    console.log("Deleting Account");
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-5 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-[#414949] bg-[#161a1a] p-6 shadow-2xl">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#d95c5c]/8 text-[#d95c5c]">
-          <Trash2 size={19} strokeWidth={1.8} />
-        </div>
-
-        <h2 className="mt-5 text-lg font-semibold text-[#edf5fc]">
-          Delete your account?
-        </h2>
-
-        <p className="mt-2 text-sm leading-6 text-[#697171]">
-          This permanently removes your NEXUS account and associated data. This
-          action cannot be undone.
-        </p>
-
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-10 rounded-xl border border-[#414949] bg-[#0f1212] px-4 text-sm font-medium text-[#aeb7ba] transition-colors hover:bg-[#303737] hover:text-[#edf5fc] focus:outline-none focus:ring-2 focus:ring-[#23ce6b]/20"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            onClick={handleAccountDeletion}
-            className="h-10 rounded-xl bg-[#d95c5c] px-4 text-sm font-medium text-[#0b0d0d] transition-colors hover:bg-[#e8a0a0] focus:outline-none focus:ring-2 focus:ring-[#d95c5c]/20"
-          >
-            Delete account
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProfileSkeleton() {
-  return (
-    <main className="min-h-dvh bg-[#0b0d0d] px-5 py-10 sm:px-8">
-      <div className="mx-auto max-w-4xl animate-pulse">
-        <div className="h-3 w-16 rounded bg-[#303737]" />
-
-        <div className="mt-3 h-9 w-32 rounded bg-[#303737]" />
-
-        <div className="mt-2 h-4 w-64 rounded bg-[#161a1a]" />
-
-        <div className="mt-8 h-32 rounded-2xl bg-[#161a1a]" />
-
-        <div className="mt-10 h-5 w-24 rounded bg-[#303737]" />
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="h-32 rounded-2xl bg-[#161a1a]" />
-          <div className="h-32 rounded-2xl bg-[#161a1a]" />
-        </div>
-      </div>
-    </main>
-  );
 }

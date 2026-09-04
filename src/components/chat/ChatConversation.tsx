@@ -1,16 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import {
-  ArrowUp,
-  ChevronDown,
-  ChevronUp,
-  Copy,
-  RefreshCw,
-  Sparkles,
-  ThumbsDown,
-  ThumbsUp,
-} from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
+import { ArrowUp, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { MessageBubble } from "./messages/MessageBubble";
+import { NexusAvatar } from "./NexusAvatar";
 
 interface ChatConversationProps {
   conversationId: string;
@@ -31,7 +24,32 @@ export default function ChatConversation({
   const [isGenerating, setIsGenerating] = useState(false);
   const [showHeader, setShowHeader] = useState(false);
 
-  const conversationTitle = "New conversation";
+  const [conversationTitle, setConversationTitle] =
+    useState<string>("New Conversation");
+
+  useEffect(() => {
+    const loadConversation = async () => {
+      try {
+        const response = await fetch(`/api/conversations/${conversationId}`);
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch the conversation details");
+        }
+
+        const { data } = await response.json();
+
+        if (data?.title) {
+          setConversationTitle(data.title);
+        }
+      } catch (error) {
+        console.error("Failed to fetch conversation details:", error);
+      }
+    };
+
+    if (conversationId) {
+      loadConversation();
+    }
+  }, [conversationId]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -215,142 +233,5 @@ export default function ChatConversation({
         </div>
       </div>
     </div>
-  );
-}
-
-interface MessageBubbleProps {
-  message: Message;
-  onRegenerate?: () => void;
-}
-
-function MessageBubble({ message, onRegenerate }: MessageBubbleProps) {
-  const isUser = message.role === "user";
-
-  if (isUser) {
-    return (
-      <div className="flex justify-end">
-        <div className="max-w-[80%]">
-          <div className="rounded-2xl bg-[#303737] px-4 py-3 text-sm leading-6 text-[#edf5fc]">
-            {message.content}
-          </div>
-
-          {message.createdAt && (
-            <p className="mt-1.5 text-right text-[10px] text-[#5f6666]">
-              {message.createdAt}
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-start gap-4">
-      <NexusAvatar />
-
-      <div className="min-w-0 flex-1">
-        <div className="max-w-none text-sm leading-7 text-[#aeb7ba]">
-          <MessageContent content={message.content} />
-        </div>
-
-        <div className="mt-3 flex items-center gap-1">
-          <MessageAction
-            icon={Copy}
-            label="Copy"
-            onClick={() => navigator.clipboard?.writeText(message.content)}
-          />
-
-          <MessageAction icon={ThumbsUp} label="Good response" />
-          <MessageAction icon={ThumbsDown} label="Bad response" />
-
-          {onRegenerate && (
-            <MessageAction
-              icon={RefreshCw}
-              label="Regenerate"
-              onClick={onRegenerate}
-            />
-          )}
-        </div>
-
-        {message.createdAt && (
-          <p className="mt-1 text-[10px] text-[#5f6666]">{message.createdAt}</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function NexusAvatar() {
-  return (
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#23ce6b] text-xs font-bold text-[#0b0d0d] shadow-[0_0_20px_rgba(35,206,107,0.08)]">
-      N
-    </div>
-  );
-}
-
-function MessageContent({ content }: { content: string }) {
-  const paragraphs = content.split("\n\n");
-
-  return (
-    <div className="space-y-4">
-      {paragraphs.map((paragraph, index) => {
-        if (paragraph.startsWith("- ")) {
-          const items = paragraph
-            .split("\n")
-            .filter(Boolean)
-            .map((item) => item.replace(/^-\s*/, ""));
-
-          return (
-            <ul key={index} className="list-disc space-y-1.5 pl-5">
-              {items.map((item, itemIndex) => (
-                <li key={itemIndex}>{renderInlineFormatting(item)}</li>
-              ))}
-            </ul>
-          );
-        }
-
-        return <p key={index}>{renderInlineFormatting(paragraph)}</p>;
-      })}
-    </div>
-  );
-}
-
-function renderInlineFormatting(text: string) {
-  const parts = text.split(/(\*\*.*?\*\*)/g);
-
-  return parts.map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={index} className="font-semibold text-[#edf5fc]">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-
-    return <span key={index}>{part}</span>;
-  });
-}
-
-interface MessageActionProps {
-  icon: React.ComponentType<{
-    size?: number;
-    strokeWidth?: number;
-    className?: string;
-  }>;
-  label: string;
-  onClick?: () => void;
-}
-
-function MessageAction({ icon: Icon, label, onClick }: MessageActionProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className="flex h-8 w-8 items-center justify-center rounded-lg text-[#5f6666] transition-colors hover:bg-[#161a1a] hover:text-[#aeb7ba]"
-    >
-      <Icon size={15} strokeWidth={1.8} />
-    </button>
   );
 }

@@ -10,6 +10,7 @@ export default async function ConversationPage({
   params,
 }: ConversationPageProps) {
   const { id } = await params;
+  // console.log(id);
 
   return <ChatConversation conversationId={id} />;
 }
