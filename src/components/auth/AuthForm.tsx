@@ -287,14 +287,14 @@ export default function AuthForm({ mode }: AuthFormProps) {
               Password
             </label>
 
-            {isLogin && (
+            {/* {isLogin && (
               <Link
                 href="/forgot-password"
                 className="text-xs font-medium text-[#23ce6b] transition-colors hover:text-[#32dc79]"
               >
                 Forgot password?
               </Link>
-            )}
+            )} */}
           </div>
 
           <div className="relative">

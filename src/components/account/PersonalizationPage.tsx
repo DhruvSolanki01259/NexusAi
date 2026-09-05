@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { ArrowLeft, Check, MessageSquare, Save, Sparkles } from "lucide-react";
+
 import { SectionHeading } from "../settings/SectionHeading";
 import { ToggleRow } from "../personalization/ToggleRow";
 import { InputField } from "../personalization/fields/InputField";
 import { SelectField } from "../personalization/fields/SelectField";
+import { authClient } from "@/lib/authentication/auth-client";
 
 interface PersonalizationSettings {
   enabled: boolean;
@@ -24,23 +26,89 @@ interface PersonalizationSettings {
 
 type SelectId = "style" | "length" | "technical" | null;
 
+const defaultSettings: PersonalizationSettings = {
+  enabled: true,
+  nickname: "",
+  profession: "",
+  interests: "",
+  responseStyle: "balanced",
+  responseLength: "concise",
+  technicalLevel: "adaptive",
+  emojis: false,
+  structuredResponses: true,
+  instructions: "",
+};
+
 export default function PersonalizationPage() {
-  const [enabled, setEnabled] = useState(true);
-  const [emojis, setEmojis] = useState(false);
-  const [structuredResponses, setStructuredResponses] = useState(true);
-
-  const [nickname, setNickname] = useState("");
-  const [profession, setProfession] = useState("");
-  const [interests, setInterests] = useState("");
-
-  const [responseStyle, setResponseStyle] = useState("balanced");
-  const [responseLength, setResponseLength] = useState("concise");
-  const [technicalLevel, setTechnicalLevel] = useState("adaptive");
-
-  const [instructions, setInstructions] = useState("");
-  const [saved, setSaved] = useState(false);
+  const [settings, setSettings] =
+    useState<PersonalizationSettings>(defaultSettings);
 
   const [openSelect, setOpenSelect] = useState<SelectId>(null);
+
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const { data: session, isPending: sessionLoading } = authClient.useSession();
+
+  const userId = session?.user?.id;
+
+  useEffect(() => {
+    if (sessionLoading || !userId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSettings = async () => {
+      try {
+        const response = await fetch(`/api/settings/${userId}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch user settings.");
+        }
+
+        const result = await response.json();
+        const data = result?.data ?? result;
+
+        if (cancelled) {
+          return;
+        }
+
+        setSettings({
+          enabled: data.enabled ?? defaultSettings.enabled,
+          nickname: data.nickname ?? defaultSettings.nickname,
+          profession: data.profession ?? defaultSettings.profession,
+          interests: data.interests ?? defaultSettings.interests,
+
+          responseStyle: data.responseStyle ?? defaultSettings.responseStyle,
+
+          responseLength: data.responseLength ?? defaultSettings.responseLength,
+
+          technicalLevel: data.technicalLevel ?? defaultSettings.technicalLevel,
+
+          emojis: data.emojis ?? defaultSettings.emojis,
+
+          structuredResponses:
+            data.structuredResponses ?? defaultSettings.structuredResponses,
+
+          instructions: data.instructions ?? defaultSettings.instructions,
+        });
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[SETTINGS FETCH ERROR]:", error);
+        }
+      }
+    };
+
+    loadSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, sessionLoading]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -56,30 +124,81 @@ export default function PersonalizationPage() {
     };
   }, []);
 
-  const handleSave = () => {
-    const settings: PersonalizationSettings = {
-      enabled,
-      nickname,
-      profession,
-      interests,
-      responseStyle,
-      responseLength,
-      technicalLevel,
-      emojis,
-      structuredResponses,
-      instructions,
-    };
+  const updateSetting = <K extends keyof PersonalizationSettings>(
+    key: K,
+    value: PersonalizationSettings[K],
+  ) => {
+    setSettings((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
 
-    // save settings to database
-
-    console.log("NEXUS Personalization Settings:", settings);
-
-    setSaved(true);
-
-    setTimeout(() => {
-      setSaved(false);
-    }, 2000);
+    setSaved(false);
   };
+
+  const handleSave = async () => {
+    if (!userId) {
+      console.error("[SETTINGS SAVE ERROR]: User session not found.");
+      return;
+    }
+
+    if (saving) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setSaved(false);
+
+      const response = await fetch(`/api/settings/${userId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(settings),
+      });
+
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(result?.message || "Failed to update user settings.");
+      }
+
+      setSaved(true);
+
+      setTimeout(() => {
+        setSaved(false);
+      }, 2000);
+    } catch (error) {
+      console.error("[SETTINGS SAVE ERROR]:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (sessionLoading) {
+    return (
+      <main className="min-h-full bg-[#0b0d0d] text-[#edf5fc]">
+        <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
+          <div className="animate-pulse">
+            <div className="h-4 w-32 rounded bg-[#1d2222]" />
+
+            <div className="mt-8 h-8 w-52 rounded bg-[#1d2222]" />
+
+            <div className="mt-3 h-5 w-full max-w-xl rounded bg-[#1d2222]" />
+
+            <div className="mt-8 h-20 rounded-2xl border border-[#303737] bg-[#141818]" />
+
+            <div className="mt-10 space-y-3">
+              <div className="h-20 rounded-2xl border border-[#303737] bg-[#141818]" />
+              <div className="h-20 rounded-2xl border border-[#303737] bg-[#141818]" />
+              <div className="h-20 rounded-2xl border border-[#303737] bg-[#141818]" />
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-full bg-[#0b0d0d] text-[#edf5fc]">
@@ -112,8 +231,8 @@ export default function PersonalizationPage() {
             icon={Sparkles}
             title="Personalization"
             description="Allow NEXUS to adapt responses using your preferences."
-            enabled={enabled}
-            onChange={setEnabled}
+            enabled={settings.enabled}
+            onChange={(value) => updateSetting("enabled", value)}
           />
         </section>
 
@@ -127,24 +246,24 @@ export default function PersonalizationPage() {
             <InputField
               label="Nickname"
               description="What should NEXUS call you?"
-              value={nickname}
-              onChange={setNickname}
+              value={settings.nickname}
+              onChange={(value) => updateSetting("nickname", value)}
               placeholder="e.g. Alex"
             />
 
             <InputField
               label="Profession or role"
               description="Your current role or area of work."
-              value={profession}
-              onChange={setProfession}
+              value={settings.profession}
+              onChange={(value) => updateSetting("profession", value)}
               placeholder="e.g. Product Designer"
             />
 
             <InputField
               label="Interests"
               description="Topics or areas you'd like NEXUS to know about."
-              value={interests}
-              onChange={setInterests}
+              value={settings.interests}
+              onChange={(value) => updateSetting("interests", value)}
               placeholder="e.g. photography, startups, technology"
             />
           </div>
@@ -160,13 +279,16 @@ export default function PersonalizationPage() {
             <SelectField
               id="style"
               label="Response style"
-              value={responseStyle}
+              value={settings.responseStyle}
               open={openSelect === "style"}
               onOpen={() =>
                 setOpenSelect(openSelect === "style" ? null : "style")
               }
               onClose={() => setOpenSelect(null)}
-              onChange={setResponseStyle}
+              onChange={(value) => {
+                updateSetting("responseStyle", value);
+                setOpenSelect(null);
+              }}
               options={[
                 {
                   value: "balanced",
@@ -194,13 +316,16 @@ export default function PersonalizationPage() {
             <SelectField
               id="length"
               label="Response length"
-              value={responseLength}
+              value={settings.responseLength}
               open={openSelect === "length"}
               onOpen={() =>
                 setOpenSelect(openSelect === "length" ? null : "length")
               }
               onClose={() => setOpenSelect(null)}
-              onChange={setResponseLength}
+              onChange={(value) => {
+                updateSetting("responseLength", value);
+                setOpenSelect(null);
+              }}
               options={[
                 {
                   value: "concise",
@@ -223,13 +348,16 @@ export default function PersonalizationPage() {
             <SelectField
               id="technical"
               label="Technical level"
-              value={technicalLevel}
+              value={settings.technicalLevel}
               open={openSelect === "technical"}
               onOpen={() =>
                 setOpenSelect(openSelect === "technical" ? null : "technical")
               }
               onClose={() => setOpenSelect(null)}
-              onChange={setTechnicalLevel}
+              onChange={(value) => {
+                updateSetting("technicalLevel", value);
+                setOpenSelect(null);
+              }}
               options={[
                 {
                   value: "adaptive",
@@ -267,8 +395,8 @@ export default function PersonalizationPage() {
               icon={MessageSquare}
               title="Use emojis"
               description="Allow NEXUS to use emojis when they fit the conversation."
-              enabled={emojis}
-              onChange={setEmojis}
+              enabled={settings.emojis}
+              onChange={(value) => updateSetting("emojis", value)}
             />
 
             <div className="mx-5 border-t border-[#303737]" />
@@ -277,8 +405,8 @@ export default function PersonalizationPage() {
               icon={MessageSquare}
               title="Structured responses"
               description="Use headings, lists, and clear sections when useful."
-              enabled={structuredResponses}
-              onChange={setStructuredResponses}
+              enabled={settings.structuredResponses}
+              onChange={(value) => updateSetting("structuredResponses", value)}
             />
           </div>
         </section>
@@ -290,8 +418,10 @@ export default function PersonalizationPage() {
           />
 
           <textarea
-            value={instructions}
-            onChange={(event) => setInstructions(event.target.value)}
+            value={settings.instructions}
+            onChange={(event) =>
+              updateSetting("instructions", event.target.value)
+            }
             rows={5}
             placeholder="Example: Explain concepts with practical examples and avoid unnecessary introductions."
             className="mt-4 block w-full resize-none rounded-2xl border border-[#303737] bg-[#141818] px-4 py-3.5 text-sm leading-6 text-[#edf5fc] outline-none transition-all placeholder:text-[#5f6666] hover:border-[#414949] focus:border-[#23ce6b]/60 focus:ring-1 focus:ring-[#23ce6b]/20"
@@ -306,12 +436,18 @@ export default function PersonalizationPage() {
           <button
             type="button"
             onClick={handleSave}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#23ce6b] px-5 text-sm font-semibold text-[#0b0d0d] transition-all duration-200 hover:bg-[#32dc79] hover:shadow-[0_0_24px_rgba(35,206,107,0.12)] focus:outline-none focus:ring-2 focus:ring-[#23ce6b]/30 active:scale-[0.98]"
+            disabled={saving}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#23ce6b] px-5 text-sm font-semibold text-[#0b0d0d] transition-all duration-200 hover:bg-[#32dc79] hover:shadow-[0_0_24px_rgba(35,206,107,0.12)] focus:outline-none focus:ring-2 focus:ring-[#23ce6b]/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saved ? (
               <>
                 <Check size={16} strokeWidth={2.2} />
                 Saved
+              </>
+            ) : saving ? (
+              <>
+                <Save size={16} strokeWidth={1.9} />
+                Saving...
               </>
             ) : (
               <>

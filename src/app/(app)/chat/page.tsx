@@ -1,10 +1,66 @@
 "use client";
 
 import Link from "next/link";
-
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Brain, FileText, Sparkles, Wrench } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function ChatPage() {
+  const router = useRouter();
+
+  const settingsInitialized = useRef(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    if (settingsInitialized.current) {
+      return;
+    }
+
+    settingsInitialized.current = true;
+
+    const initializeSettings = async () => {
+      try {
+        const response = await fetch("/api/settings", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (response.status === 201) return;
+
+        if (response.status === 409) return;
+
+        if (response.status === 401) {
+          router.replace("/login");
+          return;
+        }
+
+        console.error(
+          "Failed to initialize personalization settings:",
+          response.status,
+        );
+      } catch (error) {
+        console.error(
+          "Error while initializing personalization settings:",
+          error,
+        );
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initializeSettings();
+  }, [router]);
+
+  if (isInitializing) {
+    return (
+      <div className="flex min-h-full w-full items-center justify-center">
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#697171] border-t-[#23ce6b]" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-full w-full px-3 sm:px-5 md:px-6">
       <div className="mx-auto flex w-full max-w-2xl flex-col items-center py-8 sm:py-10 md:py-12">

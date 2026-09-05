@@ -1,34 +1,51 @@
 @import "tailwindcss";
 
+/* =========================================================
+   NEXUS AI — Global Design System
+========================================================= */
+
 :root {
+  /* -------------------------------------------------------
+     Core Colors
+  ------------------------------------------------------- */
+
   --background: #272d2d;
   --foreground: #edf5fc;
 
   --primary: #b8c5d6;
   --secondary: #a39ba8;
-  --accent: #23ce6b;
 
+  /* Accent */
+  --accent: #23ce6b;
   --accent-hover: #32dc79;
   --accent-active: #1db85d;
   --accent-muted: rgba(35, 206, 107, 0.12);
 
+  /* Surfaces */
   --surface: #303737;
   --surface-hover: #383f3f;
   --surface-active: #414949;
 
+  /* Borders */
   --border: #414949;
   --border-subtle: #363d3d;
   --border-focus: #23ce6b;
 
+  /* Text */
   --text-primary: #edf5fc;
   --text-secondary: #c2c8ce;
   --text-muted: #9ba3a5;
   --text-disabled: #697171;
 
+  /* Semantic */
   --success: #23ce6b;
   --warning: #d9b44a;
   --error: #d95c5c;
   --info: #b8c5d6;
+
+  /* -------------------------------------------------------
+     Border Radius
+  ------------------------------------------------------- */
 
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
@@ -38,15 +55,20 @@
   --radius-3xl: 1.5rem;
 }
 
+/* =========================================================
+   Tailwind Theme
+========================================================= */
+
 @theme inline {
   /* Colors */
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
   --color-primary: var(--primary);
   --color-secondary: var(--secondary);
-  --color-accent: var(--accent);
 
+  --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-active: var(--accent-active);
   --color-accent-muted: var(--accent-muted);
@@ -70,10 +92,12 @@
   --color-info: var(--info);
 
   /* Typography */
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
   /* Radius */
+
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
@@ -81,6 +105,10 @@
   --radius-2xl: var(--radius-2xl);
   --radius-3xl: var(--radius-3xl);
 }
+
+/* =========================================================
+   Base Reset
+========================================================= */
 
 * {
   box-sizing: border-box;
@@ -111,6 +139,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* =========================================================
+   Typography
+========================================================= */
+
 h1,
 h2,
 h3,
@@ -134,23 +166,32 @@ strong {
   color: var(--text-primary);
 }
 
-
 a {
   color: inherit;
   text-decoration: none;
 }
 
+/* =========================================================
+   Selection
+========================================================= */
 
 ::selection {
   background: var(--accent);
   color: #17201a;
 }
 
+/* =========================================================
+   Focus
+========================================================= */
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
+/* =========================================================
+   Scrollbars
+========================================================= */
 
 ::-webkit-scrollbar {
   width: 8px;
@@ -169,6 +210,17 @@ a {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--secondary);
 }
+
+/* Firefox */
+
+* {
+  scrollbar-color: var(--border) var(--background);
+  scrollbar-width: thin;
+}
+
+/* =========================================================
+   Form Elements
+========================================================= */
 
 button,
 input,
@@ -190,6 +242,13 @@ textarea::placeholder {
   color: var(--text-muted);
 }
 
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* =========================================================
+   NEXUS Utility Classes
+========================================================= */
 
 .nexus-container {
   width: 100%;
@@ -207,21 +266,152 @@ textarea::placeholder {
   border-color: var(--border-subtle);
 }
 
-.nexus-muted {
-  color: var(--text-muted);
-}
-
-.nexus-secondary {
-  color: var(--text-secondary);
+.nexus-divider {
+  border-color: var(--border);
 }
 
 .nexus-primary {
   color: var(--text-primary);
 }
 
+.nexus-secondary {
+  color: var(--text-secondary);
+}
+
+.nexus-muted {
+  color: var(--text-muted);
+}
+
+.nexus-text-primary {
+  color: var(--text-primary);
+}
+
+.nexus-text-secondary {
+  color: var(--text-secondary);
+}
+
+.nexus-text-muted {
+  color: var(--text-muted);
+}
+
+.nexus-text-disabled {
+  color: var(--text-disabled);
+}
+
 .nexus-accent {
   color: var(--accent);
 }
+
+.nexus-page {
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* =========================================================
+   NEXUS Streaming — Thinking / Tool / Memory Shimmer
+========================================================= */
+
+@keyframes nexus-shimmer {
+  0% {
+    background-position: 220% 0;
+  }
+
+  100% {
+    background-position: -220% 0;
+  }
+}
+
+.nexus-shimmer {
+  background: linear-gradient(
+    110deg,
+    var(--text-muted) 20%,
+    var(--foreground) 40%,
+    var(--text-muted) 60%
+  );
+
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+
+  color: transparent;
+
+  animation: nexus-shimmer 1.8s linear infinite;
+}
+
+/* =========================================================
+   NEXUS Streaming — Progress Animation
+========================================================= */
+
+@keyframes nexus-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  50% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.nexus-progress {
+  animation: nexus-progress 1.5s ease-in-out infinite;
+}
+
+/* =========================================================
+   NEXUS Streaming — Pulse
+========================================================= */
+
+@keyframes nexus-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.nexus-pulse {
+  animation: nexus-pulse 1.5s ease-in-out infinite;
+}
+
+/* =========================================================
+   NEXUS Streaming — Status Dots
+========================================================= */
+
+.nexus-dot {
+  animation: nexus-pulse 1.2s ease-in-out infinite;
+}
+
+.nexus-dot:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.nexus-dot:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+/* =========================================================
+   Hide Scrollbar
+========================================================= */
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* =========================================================
+   Responsive Container
+========================================================= */
 
 @media (min-width: 640px) {
   .nexus-container {
@@ -235,38 +425,102 @@ textarea::placeholder {
   }
 }
 
+/* =========================================================
+   Reduced Motion
+========================================================= */
 
-.nexus-page {
-  min-height: 100vh;
-  background: #272d2d;
-  color: #edf5fc;
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .nexus-shimmer,
+  .nexus-progress,
+  .nexus-pulse,
+  .nexus-dot {
+    animation: none;
+  }
 }
 
-.nexus-surface {
-  background: #303737;
-  border: 1px solid #414949;
+/* =========================================================
+   NEXUS Chat Animations
+   ========================================================= */
+
+.nexus-shimmer {
+  background: linear-gradient(
+    110deg,
+    #697171 20%,
+    #edf5fc 40%,
+    #697171 60%
+  );
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: nexus-shimmer 1.8s linear infinite;
 }
 
-.nexus-text-primary {
-  color: #edf5fc;
+@keyframes nexus-shimmer {
+  0% {
+    background-position: 220% 0;
+  }
+
+  100% {
+    background-position: -220% 0;
+  }
 }
 
-.nexus-text-secondary {
-  color: #c2c8ce;
+.nexus-progress {
+  animation: nexus-progress 1.5s ease-in-out infinite;
 }
 
-.nexus-text-muted {
-  color: #9ba3a5;
+@keyframes nexus-progress {
+  0% {
+    transform: scaleX(0.15);
+    opacity: 0.45;
+  }
+
+  50% {
+    transform: scaleX(0.75);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scaleX(1);
+    opacity: 0.45;
+  }
 }
 
-.nexus-text-disabled {
-  color: #697171;
+.nexus-dot {
+  animation: nexus-dot 1.2s ease-in-out infinite;
 }
 
-.nexus-accent {
-  color: #23ce6b;
+.nexus-dot-2 {
+  animation-delay: 120ms;
 }
 
-.nexus-divider {
-  border-color: #414949;
+.nexus-dot-3 {
+  animation-delay: 240ms;
+}
+
+@keyframes nexus-dot {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+
+  30% {
+    transform: translateY(-2px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nexus-shimmer,
+  .nexus-progress,
+  .nexus-dot {
+    animation: none;
+  }
 }
