@@ -1,6 +1,7 @@
 "use client";
 
-import ReactMarkdown from "react-markdown";
+import Image from "next/image";
+import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Mermaid from "./Mermaid";
 
@@ -8,140 +9,198 @@ interface MarkdownRendererProps {
   content: string;
 }
 
-export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
-  return (
-    <div className="nexus-markdown">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          h1: ({ children }) => (
-            <h1 className="mb-8 border-b border-[#414949] pb-5 text-3xl font-semibold tracking-[-0.03em] text-[#edf5fc] sm:text-4xl">
-              {children}
-            </h1>
-          ),
+function normalizeMarkdown(content: string): string {
+  return content
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
 
-          h2: ({ children }) => (
-            <h2 className="mb-5 mt-14 text-2xl font-semibold tracking-[-0.02em] text-[#edf5fc] sm:text-3xl">
-              {children}
-            </h2>
-          ),
+    .replace(/<br\s*\/?>/gi, "\n")
 
-          h3: ({ children }) => (
-            <h3 className="mb-4 mt-10 text-xl font-semibold text-[#edf5fc]">
-              {children}
-            </h3>
-          ),
+    .replace(/&lt;br\s*\/?&gt;/gi, "\n")
 
-          h4: ({ children }) => (
-            <h4 className="mb-3 mt-8 text-lg font-semibold text-[#dce4e8]">
-              {children}
-            </h4>
-          ),
+    .replace(/\\n/g, "\n")
 
-          p: ({ children }) => (
-            <p className="my-5 text-[15px] leading-7 text-[#aeb7ba]">
-              {children}
-            </p>
-          ),
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
 
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-[#23ce6b] underline decoration-[#23ce6b]/30 underline-offset-4 transition-colors hover:text-[#32dc79] hover:decoration-[#32dc79]"
-            >
-              {children}
-            </a>
-          ),
+    .trim();
+}
 
-          strong: ({ children }) => (
-            <strong className="font-semibold text-[#edf5fc]">{children}</strong>
-          ),
+const components: Components = {
+  h1: ({ children }) => (
+    <h1 className="mb-4 mt-6 text-xl font-semibold leading-7 text-[#edf5fc]">
+      {children}
+    </h1>
+  ),
 
-          em: ({ children }) => <em className="text-[#c2c8ce]">{children}</em>,
+  h2: ({ children }) => (
+    <h2 className="mb-3 mt-6 text-lg font-semibold leading-7 text-[#edf5fc]">
+      {children}
+    </h2>
+  ),
 
-          ul: ({ children }) => (
-            <ul className="my-6 space-y-3 pl-6 text-[15px] leading-7 text-[#aeb7ba] marker:text-[#23ce6b]">
-              {children}
-            </ul>
-          ),
+  h3: ({ children }) => (
+    <h3 className="mb-2 mt-5 text-base font-semibold leading-6 text-[#edf5fc]">
+      {children}
+    </h3>
+  ),
 
-          ol: ({ children }) => (
-            <ol className="my-6 space-y-3 pl-6 text-[15px] leading-7 text-[#aeb7ba] marker:font-semibold marker:text-[#23ce6b]">
-              {children}
-            </ol>
-          ),
+  h4: ({ children }) => (
+    <h4 className="mb-2 mt-4 text-sm font-semibold leading-6 text-[#edf5fc]">
+      {children}
+    </h4>
+  ),
 
-          li: ({ children }) => <li className="pl-1">{children}</li>,
+  p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
 
-          blockquote: ({ children }) => (
-            <blockquote className="my-7 border-l-2 border-[#23ce6b] bg-[#161a1a] px-5 py-4 text-[#aeb7ba]">
-              {children}
-            </blockquote>
-          ),
+  strong: ({ children }) => (
+    <strong className="font-semibold text-[#edf5fc]">{children}</strong>
+  ),
 
-          code: ({ className, children }) => {
-            const language = className?.replace("language-", "");
+  em: ({ children }) => <em className="italic">{children}</em>,
 
-            /*
-             * Mermaid is handled separately.
-             */
-            if (language === "mermaid") {
-              return <Mermaid chart={String(children).trim()} />;
-            }
+  del: ({ children }) => (
+    <del className="text-[#697171] line-through">{children}</del>
+  ),
 
-            return (
-              <code className="rounded-md border border-[#414949] bg-[#161a1a] px-1.5 py-0.5 font-mono text-[0.85em] text-[#23ce6b]">
-                {children}
-              </code>
-            );
-          },
+  a: ({ href, children, ...props }) => (
+    <a
+      {...props}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[#23ce6b] underline underline-offset-2 transition hover:text-[#32db79]"
+    >
+      {children}
+    </a>
+  ),
 
-          pre: ({ children }) => (
-            <pre className="my-7 overflow-x-auto rounded-xl border border-[#414949] bg-[#0b0d0d] p-5 font-mono text-[13px] leading-6 text-[#c2c8ce] shadow-inner">
-              {children}
-            </pre>
-          ),
+  ul: ({ children }) => (
+    <ul className="my-3 ml-5 list-disc space-y-1">{children}</ul>
+  ),
 
-          hr: () => <hr className="my-12 border-0 border-t border-[#414949]" />,
+  ol: ({ children }) => (
+    <ol className="my-3 ml-5 list-decimal space-y-1">{children}</ol>
+  ),
 
-          table: ({ children }) => (
-            <div className="my-8 overflow-x-auto rounded-xl border border-[#414949]">
-              <table className="w-full min-w-150 border-collapse text-left text-sm">
-                {children}
-              </table>
-            </div>
-          ),
+  li: ({ children }) => <li className="pl-1">{children}</li>,
 
-          thead: ({ children }) => (
-            <thead className="bg-[#161a1a] text-[#edf5fc]">{children}</thead>
-          ),
+  blockquote: ({ children }) => (
+    <blockquote className="my-4 border-l-2 border-[#414949] pl-4 italic text-[#8f9a9a]">
+      {children}
+    </blockquote>
+  ),
 
-          tbody: ({ children }) => (
-            <tbody className="divide-y divide-[#414949] bg-[#303737]">
-              {children}
-            </tbody>
-          ),
+  hr: () => <hr className="my-6 border-[#303737]" />,
 
-          tr: ({ children }) => (
-            <tr className="transition-colors hover:bg-[#383f3f]">{children}</tr>
-          ),
+  br: () => <br />,
 
-          th: ({ children }) => (
-            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-[#c2c8ce]">
-              {children}
-            </th>
-          ),
+  table: ({ children }) => (
+    <div className="my-5 w-full overflow-x-auto rounded-xl border border-[#303737]">
+      <table className="w-full min-w-150 border-collapse text-left text-xs">
+        {children}
+      </table>
+    </div>
+  ),
 
-          td: ({ children }) => (
-            <td className="px-4 py-3 text-sm leading-6 text-[#aeb7ba]">
-              {children}
-            </td>
-          ),
-        }}
+  thead: ({ children }) => <thead className="bg-[#161a1a]">{children}</thead>,
+
+  tbody: ({ children }) => <tbody>{children}</tbody>,
+
+  tr: ({ children }) => <tr className="even:bg-[#101313]">{children}</tr>,
+
+  th: ({ children }) => (
+    <th className="border border-[#303737] px-3 py-2.5 font-semibold text-[#edf5fc]">
+      {children}
+    </th>
+  ),
+
+  td: ({ children }) => (
+    <td className="border border-[#303737] px-3 py-2.5 align-top text-[#cbd5dc]">
+      {children}
+    </td>
+  ),
+
+  pre: ({ children }) => (
+    <pre className="my-4 overflow-x-auto rounded-xl border border-[#303737] bg-[#111515] p-4">
+      {children}
+    </pre>
+  ),
+
+  code: ({ className, children, ...props }) => {
+    const code = String(children);
+
+    const language = className?.match(/language-([\w-]+)/)?.[1];
+
+    if (language === "mermaid" || language === "mermaid-diagram") {
+      return <Mermaid chart={code.trim()} />;
+    }
+
+    const isBlock = Boolean(className) || code.includes("\n");
+
+    if (isBlock) {
+      return (
+        <code
+          {...props}
+          className={`${className ?? ""} font-mono text-xs leading-5 text-[#d7e0e5]`}
+        >
+          {children}
+        </code>
+      );
+    }
+
+    return (
+      <code
+        {...props}
+        className="rounded-md border border-[#303737] bg-[#111515] px-1.5 py-0.5 font-mono text-[0.85em] text-[#edf5fc]"
       >
-        {content}
+        {children}
+      </code>
+    );
+  },
+
+  img: ({ src, alt }) => {
+    if (!src || typeof src !== "string") {
+      return null;
+    }
+
+    return (
+      <span className="my-5 block overflow-hidden rounded-xl border border-[#303737] bg-[#0f1313]">
+        <Image
+          src={src}
+          alt={alt ?? ""}
+          width={1200}
+          height={800}
+          unoptimized
+          className="h-auto max-h-150 w-auto max-w-full object-contain"
+        />
+      </span>
+    );
+  },
+
+  input: ({ checked, disabled, type }) => {
+    if (type !== "checkbox") {
+      return null;
+    }
+
+    return (
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        readOnly
+        className="mr-2 align-middle accent-[#23ce6b]"
+      />
+    );
+  },
+};
+
+export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
+  const normalizedContent = normalizeMarkdown(content);
+
+  return (
+    <div className="nexus-markdown wrap-break-word">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        {normalizedContent}
       </ReactMarkdown>
     </div>
   );

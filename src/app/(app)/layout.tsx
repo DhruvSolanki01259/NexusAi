@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/authentication/session";
-import Sidebar from "@/components/chat/Sidebar";
+import Sidebar from "@/components/chat/sidebar/Sidebar";
 import { redirect } from "next/navigation";
 
 export default async function AppLayout({

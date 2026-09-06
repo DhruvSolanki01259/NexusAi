@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -16,11 +16,21 @@ import {
 } from "lucide-react";
 
 import { authClient } from "@/lib/authentication/auth-client";
+
 import { ProfileSkeleton } from "../profile/ProfileSkeleton";
 import { SectionHeading } from "../settings/SectionHeading";
 import { StatCard } from "../profile/StatCard";
 import { AccountLink } from "../profile/AccountLink";
 import { DeleteDialog } from "../profile/DeleteDailog";
+
+interface ProfileStatsResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    total_conversations: number;
+    personalization: boolean;
+  };
+}
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -29,6 +39,175 @@ export default function ProfilePage() {
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  const [totalConversations, setTotalConversations] = useState(0);
+  const [personalizationEnabled, setPersonalizationEnabled] = useState(false);
+  const [isStatsLoading, setIsStatsLoading] = useState(true);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+
+    if (isPending || !userId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchProfileStats = async () => {
+      setIsStatsLoading(true);
+
+      try {
+        const response = await fetch("/api/profile", {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+          cache: "no-store",
+        });
+
+        const result: ProfileStatsResponse = await response.json();
+
+        if (!response.ok || !result.success || !result.data) {
+          throw new Error(
+            result.message || "Failed to fetch profile statistics.",
+          );
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setTotalConversations(result.data.total_conversations);
+        setPersonalizationEnabled(result.data.personalization);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("Failed to fetch profile statistics:", error);
+
+        setTotalConversations(0);
+        setPersonalizationEnabled(false);
+      } finally {
+        if (!cancelled) {
+          setIsStatsLoading(false);
+        }
+      }
+    };
+
+    fetchProfileStats();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPending, session?.user?.id]);
+
+  const handleLogout = async () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    setIsLoggingOut(true);
+
+    try {
+      await authClient.signOut();
+
+      router.push("/");
+      router.refresh();
+    } catch (error) {
+      console.error("Logout failed:", error);
+      setIsLoggingOut(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (isDeletingAccount) {
+      return;
+    }
+
+    setIsDeletingAccount(true);
+
+    try {
+      // Delete all user messages
+      const messagesResponse = await fetch("/api/messages", {
+        method: "DELETE",
+      });
+
+      if (!messagesResponse.ok) {
+        let message = "Unable to delete your messages.";
+
+        try {
+          const data = await messagesResponse.json();
+          message = data?.error || data?.message || message;
+        } catch {}
+
+        throw new Error(message);
+      }
+
+      // Delete all user conversations
+      const conversationsResponse = await fetch("/api/conversations", {
+        method: "DELETE",
+      });
+
+      if (!conversationsResponse.ok) {
+        let message = "Unable to delete your conversations.";
+
+        try {
+          const data = await conversationsResponse.json();
+          message = data?.error || data?.message || message;
+        } catch {}
+
+        throw new Error(message);
+      }
+
+      // Delete all user settings
+      const settingsResponse = await fetch("/api/settings", {
+        method: "DELETE",
+      });
+
+      if (!settingsResponse.ok) {
+        let message = "Unable to delete your settings.";
+
+        try {
+          const data = await settingsResponse.json();
+          message = data?.error || data?.message || message;
+        } catch {}
+
+        throw new Error(message);
+      }
+
+      // Delete the authenticated user
+      const { error } = await authClient.deleteUser();
+
+      if (error) {
+        const message = error.message?.toLowerCase() || "";
+
+        if (
+          message.includes("fresh") ||
+          message.includes("session") ||
+          message.includes("reauth")
+        ) {
+          throw new Error(
+            "For security, please sign in again and then try deleting your account.",
+          );
+        }
+
+        throw new Error(error.message || "Unable to delete your account.");
+      }
+
+      setIsDeleteOpen(false);
+
+      router.replace("/");
+      router.refresh();
+    } catch (error) {
+      console.error("Delete account error:", error);
+
+      throw error;
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
 
   if (isPending) {
     return <ProfileSkeleton />;
@@ -39,24 +218,6 @@ export default function ProfilePage() {
   const name = user?.name || "User";
   const email = user?.email || "";
   const initial = name.charAt(0).toUpperCase();
-
-  const totalConversations = 0;
-  const personalizationEnabled = true;
-
-  const handleLogout = async () => {
-    if (isLoggingOut) return;
-
-    setIsLoggingOut(true);
-
-    try {
-      await authClient.signOut();
-      router.push("/");
-      router.refresh();
-    } catch (error) {
-      console.error("Logout failed:", error);
-      setIsLoggingOut(false);
-    }
-  };
 
   return (
     <main className="min-h-dvh overflow-y-auto bg-[#0b0d0d] text-[#edf5fc]">
@@ -75,6 +236,7 @@ export default function ProfilePage() {
           </p>
         </div>
 
+        {/* Profile */}
         <section className="mt-8 overflow-hidden rounded-2xl border border-[#414949] bg-[#161a1a]">
           <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-7">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-[#303737] text-2xl font-semibold text-[#23ce6b]">
@@ -102,6 +264,7 @@ export default function ProfilePage() {
           </div>
         </section>
 
+        {/* Overview */}
         <section className="mt-10">
           <SectionHeading
             title="Overview"
@@ -112,18 +275,25 @@ export default function ProfilePage() {
             <StatCard
               icon={MessageSquare}
               label="Total conversations"
-              value={totalConversations.toString()}
+              value={isStatsLoading ? "..." : totalConversations.toString()}
             />
 
             <StatCard
               icon={Brain}
               label="Personalization"
-              value={personalizationEnabled ? "Enabled" : "Disabled"}
-              indicator={personalizationEnabled}
+              value={
+                isStatsLoading
+                  ? "..."
+                  : personalizationEnabled
+                    ? "Enabled"
+                    : "Disabled"
+              }
+              indicator={isStatsLoading ? undefined : personalizationEnabled}
             />
           </div>
         </section>
 
+        {/* Preferences */}
         <section className="mt-10">
           <SectionHeading
             title="Preferences"
@@ -136,8 +306,15 @@ export default function ProfilePage() {
               icon={Brain}
               title="Personalization"
               description="Tell NEXUS about your preferences, communication style, and how you want responses."
-              value={personalizationEnabled ? "Enabled" : "Disabled"}
+              value={
+                isStatsLoading
+                  ? "..."
+                  : personalizationEnabled
+                    ? "Enabled"
+                    : "Disabled"
+              }
             />
+
             <Divider />
 
             <AccountLink
@@ -149,6 +326,7 @@ export default function ProfilePage() {
           </div>
         </section>
 
+        {/* Security & Privacy */}
         <section className="mt-10">
           <SectionHeading
             title="Security & privacy"
@@ -174,6 +352,7 @@ export default function ProfilePage() {
           </div>
         </section>
 
+        {/* Account */}
         <section className="mt-10">
           <SectionHeading
             title="Account"
@@ -181,10 +360,11 @@ export default function ProfilePage() {
           />
 
           <div className="mt-4 overflow-hidden rounded-2xl border border-[#414949] bg-[#161a1a]">
+            {/* Logout */}
             <button
               type="button"
               onClick={handleLogout}
-              disabled={isLoggingOut}
+              disabled={isLoggingOut || isDeletingAccount}
               className="flex w-full items-center gap-4 p-5 text-left transition-colors hover:bg-[#303737] focus:bg-[#303737] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#303737] text-[#aeb7ba]">
@@ -204,10 +384,12 @@ export default function ProfilePage() {
 
             <Divider />
 
+            {/* Delete Account */}
             <button
               type="button"
               onClick={() => setIsDeleteOpen(true)}
-              className="flex w-full items-center gap-4 p-5 text-left transition-colors hover:bg-[#d95c5c]/6 focus:bg-[#d95c5c]/6 focus:outline-none"
+              disabled={isDeletingAccount}
+              className="flex w-full items-center gap-4 p-5 text-left transition-colors hover:bg-[#d95c5c]/6 focus:bg-[#d95c5c]/6 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#d95c5c]/8 text-[#d95c5c]">
                 <Trash2 size={17} strokeWidth={1.8} />
@@ -231,7 +413,18 @@ export default function ProfilePage() {
         </p>
       </div>
 
-      {isDeleteOpen && <DeleteDialog onClose={() => setIsDeleteOpen(false)} />}
+      {/* Delete Account Dialog */}
+      {isDeleteOpen && (
+        <DeleteDialog
+          onClose={() => {
+            if (!isDeletingAccount) {
+              setIsDeleteOpen(false);
+            }
+          }}
+          onConfirm={handleDeleteAccount}
+          loading={isDeletingAccount}
+        />
+      )}
     </main>
   );
 }

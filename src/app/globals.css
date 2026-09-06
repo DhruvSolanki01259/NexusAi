@@ -1,51 +1,34 @@
 @import "tailwindcss";
 
-/* =========================================================
-   NEXUS AI — Global Design System
-========================================================= */
-
 :root {
-  /* -------------------------------------------------------
-     Core Colors
-  ------------------------------------------------------- */
-
   --background: #272d2d;
   --foreground: #edf5fc;
 
   --primary: #b8c5d6;
   --secondary: #a39ba8;
 
-  /* Accent */
   --accent: #23ce6b;
   --accent-hover: #32dc79;
   --accent-active: #1db85d;
   --accent-muted: rgba(35, 206, 107, 0.12);
 
-  /* Surfaces */
   --surface: #303737;
   --surface-hover: #383f3f;
   --surface-active: #414949;
 
-  /* Borders */
   --border: #414949;
   --border-subtle: #363d3d;
   --border-focus: #23ce6b;
 
-  /* Text */
   --text-primary: #edf5fc;
   --text-secondary: #c2c8ce;
   --text-muted: #9ba3a5;
   --text-disabled: #697171;
 
-  /* Semantic */
   --success: #23ce6b;
   --warning: #d9b44a;
   --error: #d95c5c;
   --info: #b8c5d6;
-
-  /* -------------------------------------------------------
-     Border Radius
-  ------------------------------------------------------- */
 
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
@@ -55,13 +38,7 @@
   --radius-3xl: 1.5rem;
 }
 
-/* =========================================================
-   Tailwind Theme
-========================================================= */
-
 @theme inline {
-  /* Colors */
-
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
@@ -91,12 +68,8 @@
   --color-error: var(--error);
   --color-info: var(--info);
 
-  /* Typography */
-
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-
-  /* Radius */
 
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
@@ -105,10 +78,6 @@
   --radius-2xl: var(--radius-2xl);
   --radius-3xl: var(--radius-3xl);
 }
-
-/* =========================================================
-   Base Reset
-========================================================= */
 
 * {
   box-sizing: border-box;
@@ -127,21 +96,13 @@ body {
   background: var(--background);
   color: var(--text-primary);
 
-  font-family:
-    var(--font-geist-sans),
-    Arial,
-    Helvetica,
-    sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
   text-rendering: optimizeLegibility;
 }
-
-/* =========================================================
-   Typography
-========================================================= */
 
 h1,
 h2,
@@ -171,27 +132,15 @@ a {
   text-decoration: none;
 }
 
-/* =========================================================
-   Selection
-========================================================= */
-
 ::selection {
   background: var(--accent);
   color: #17201a;
 }
 
-/* =========================================================
-   Focus
-========================================================= */
-
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
-
-/* =========================================================
-   Scrollbars
-========================================================= */
 
 ::-webkit-scrollbar {
   width: 8px;
@@ -211,16 +160,10 @@ a {
   background: var(--secondary);
 }
 
-/* Firefox */
-
 * {
   scrollbar-color: var(--border) var(--background);
   scrollbar-width: thin;
 }
-
-/* =========================================================
-   Form Elements
-========================================================= */
 
 button,
 input,
@@ -245,10 +188,6 @@ textarea::placeholder {
 button {
   -webkit-tap-highlight-color: transparent;
 }
-
-/* =========================================================
-   NEXUS Utility Classes
-========================================================= */
 
 .nexus-container {
   width: 100%;
@@ -308,10 +247,6 @@ button {
   color: var(--foreground);
 }
 
-/* =========================================================
-   NEXUS Streaming — Thinking / Tool / Memory Shimmer
-========================================================= */
-
 @keyframes nexus-shimmer {
   0% {
     background-position: 220% 0;
@@ -339,10 +274,6 @@ button {
   animation: nexus-shimmer 1.8s linear infinite;
 }
 
-/* =========================================================
-   NEXUS Streaming — Progress Animation
-========================================================= */
-
 @keyframes nexus-progress {
   0% {
     transform: translateX(-100%);
@@ -361,10 +292,6 @@ button {
   animation: nexus-progress 1.5s ease-in-out infinite;
 }
 
-/* =========================================================
-   NEXUS Streaming — Pulse
-========================================================= */
-
 @keyframes nexus-pulse {
   0%,
   100% {
@@ -380,10 +307,6 @@ button {
   animation: nexus-pulse 1.5s ease-in-out infinite;
 }
 
-/* =========================================================
-   NEXUS Streaming — Status Dots
-========================================================= */
-
 .nexus-dot {
   animation: nexus-pulse 1.2s ease-in-out infinite;
 }
@@ -396,10 +319,6 @@ button {
   animation-delay: 240ms;
 }
 
-/* =========================================================
-   Hide Scrollbar
-========================================================= */
-
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -408,10 +327,6 @@ button {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
-
-/* =========================================================
-   Responsive Container
-========================================================= */
 
 @media (min-width: 640px) {
   .nexus-container {
@@ -424,10 +339,6 @@ button {
     padding-inline: 40px;
   }
 }
-
-/* =========================================================
-   Reduced Motion
-========================================================= */
 
 @media (prefers-reduced-motion: reduce) {
   html {
@@ -442,17 +353,8 @@ button {
   }
 }
 
-/* =========================================================
-   NEXUS Chat Animations
-   ========================================================= */
-
 .nexus-shimmer {
-  background: linear-gradient(
-    110deg,
-    #697171 20%,
-    #edf5fc 40%,
-    #697171 60%
-  );
+  background: linear-gradient(110deg, #697171 20%, #edf5fc 40%, #697171 60%);
   background-size: 220% 100%;
   background-clip: text;
   -webkit-background-clip: text;

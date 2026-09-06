@@ -1,7 +1,10 @@
+"use client";
+
+import { Copy } from "lucide-react";
+
 import { NexusAvatar } from "../NexusAvatar";
 import { MessageAction } from "./MessageAction";
 import { MessageContent } from "./MessageContent";
-import { Copy, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
 
 interface Message {
   id: string;
@@ -12,17 +15,16 @@ interface Message {
 
 interface MessageBubbleProps {
   message: Message;
-  onRegenerate?: () => void;
 }
 
-export function MessageBubble({ message, onRegenerate }: MessageBubbleProps) {
+export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
 
   if (isUser) {
     return (
       <div className="flex justify-end">
         <div className="max-w-[80%]">
-          <div className="rounded-2xl bg-[#303737] px-4 py-3 text-sm leading-6 text-[#edf5fc]">
+          <div className="wrap-break-word rounded-2xl bg-[#303737] px-4 py-3 text-sm leading-6 text-[#edf5fc]">
             {message.content}
           </div>
 
@@ -38,30 +40,21 @@ export function MessageBubble({ message, onRegenerate }: MessageBubbleProps) {
 
   return (
     <div className="flex items-start gap-4">
-      <NexusAvatar />
+      <div className="shrink-0">
+        <NexusAvatar />
+      </div>
 
       <div className="min-w-0 flex-1">
         <div className="max-w-none text-sm leading-7 text-[#aeb7ba]">
           <MessageContent content={message.content} />
         </div>
 
-        <div className="mt-3 flex items-center gap-1">
+        <div className="mt-3 flex items-center">
           <MessageAction
             icon={Copy}
             label="Copy"
             onClick={() => navigator.clipboard?.writeText(message.content)}
           />
-
-          <MessageAction icon={ThumbsUp} label="Good response" />
-          <MessageAction icon={ThumbsDown} label="Bad response" />
-
-          {onRegenerate && (
-            <MessageAction
-              icon={RefreshCw}
-              label="Regenerate"
-              onClick={onRegenerate}
-            />
-          )}
         </div>
 
         {message.createdAt && (

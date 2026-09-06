@@ -49,3 +49,48 @@ export const POST = async () => {
     });
   }
 };
+
+export const DELETE = async () => {
+  try {
+    const auth = await getAuthenticatedUser();
+    if ("error" in auth) {
+      return auth.error;
+    }
+
+    const userId = auth.userId;
+
+    await connectToMongoDB();
+
+    const deletedSettings = await Personalization.findOneAndDelete({
+      userId,
+    });
+
+    if (!deletedSettings) {
+      return errorResponse("Personalization settings not found", 404, {
+        name: "SettingsNotFoundError",
+        message: "No personalization settings were found for this user.",
+        cause: undefined,
+      });
+    }
+
+    return successResponse(
+      "Personalization settings deleted successfully",
+      200,
+      deletedSettings,
+    );
+  } catch (error) {
+    const errorDetails = getErrorDetails(error);
+
+    console.error("DELETE /api/settings error:", {
+      name: errorDetails.name,
+      message: errorDetails.message,
+      cause: errorDetails.cause,
+    });
+
+    return errorResponse(
+      "Failed to delete personalization settings",
+      500,
+      errorDetails,
+    );
+  }
+};

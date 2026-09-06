@@ -1,41 +1,50 @@
-import { workflow } from "@/langgraph/workflow";
-
-import { errorResponse } from "@/lib/api/apiResponse";
-import { getErrorDetails } from "@/lib/api/errorHandler";
 import { getAuthenticatedUser } from "@/lib/api/getAuthenticatedUser";
 import { getConversationConfig } from "@/lib/api/getConversationConfig";
+import { getErrorDetails } from "@/lib/api/errorHandler";
+import { errorResponse } from "@/lib/api/apiResponse";
+import { workflow } from "@/langgraph/workflow";
 import {
   encodeEvent,
   extractMessageContent,
   getNodeLabel,
 } from "@/lib/api/streamHelper";
-
 import Message from "@/lib/models/message.model";
-
 import { HumanMessage } from "langchain";
 import { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+interface ChatRequestBody {
+  conversationId?: string;
+  query?: string;
+}
+
 interface StreamEvent {
   type: "token" | "status" | "done" | "error";
   content?: string;
   node?: string;
   message?: string;
   conversationId?: string;
+  title?: string;
+}
+
+function isChatRequestBody(body: unknown): body is ChatRequestBody {
+  return typeof body === "object" && body !== null;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthenticatedUser();
+
     if ("error" in auth) {
       return auth.error;
     }
 
     const userId = auth.userId;
 
-    
     let body: unknown;
+
     try {
       body = await request.json();
     } catch {
@@ -46,8 +55,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (!isChatRequestBody(body)) {
+      return errorResponse("Invalid request body", 400, {
+        name: "ValidationError",
+        message: "The request body must be a valid JSON object.",
+        cause: undefined,
+      });
+    }
+
     const conversationId =
       typeof body.conversationId === "string" ? body.conversationId.trim() : "";
+
     if (!conversationId) {
       return errorResponse("Conversation ID is required", 400, {
         name: "ValidationError",
@@ -55,11 +73,9 @@ export async function POST(request: NextRequest) {
         cause: undefined,
       });
     }
-    
-    const userQuery =
-      typeof body === "object" && body !== null && "query" in body
-        ? body.query
-        : undefined;
+
+    const userQuery = body.query;
+
     if (typeof userQuery !== "string" || !userQuery.trim()) {
       return errorResponse("Query is required", 400, {
         name: "ValidationError",
@@ -69,6 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     const query = userQuery.trim();
+
     try {
       // User message creation
       await Message.create({
@@ -94,6 +111,7 @@ export async function POST(request: NextRequest) {
     }
 
     let config;
+
     try {
       config = getConversationConfig(conversationId);
     } catch (error) {
@@ -113,6 +131,7 @@ export async function POST(request: NextRequest) {
     }
 
     let result;
+
     try {
       result = await workflow.stream(
         {
@@ -141,7 +160,7 @@ export async function POST(request: NextRequest) {
     const readable = new ReadableStream({
       async start(controller) {
         let assistantContent = "";
-
+        let generatedTitle = "";
         let streamClosed = false;
 
         const closeStream = () => {
@@ -165,7 +184,6 @@ export async function POST(request: NextRequest) {
             controller.enqueue(encodeEvent(encoder, event));
           } catch (error) {
             console.error("Failed to enqueue stream event:", error);
-
             streamClosed = true;
           }
         };
@@ -234,9 +252,21 @@ export async function POST(request: NextRequest) {
 
               const entries = Object.entries(data);
 
-              for (const [nodeName] of entries) {
+              for (const [nodeName, nodeData] of entries) {
                 if (request.signal.aborted || streamClosed) {
                   break;
+                }
+
+                if (
+                  typeof nodeData === "object" &&
+                  nodeData !== null &&
+                  "title" in nodeData
+                ) {
+                  const title = (nodeData as { title?: unknown }).title;
+
+                  if (typeof title === "string" && title.trim()) {
+                    generatedTitle = title.trim();
+                  }
                 }
 
                 const label = getNodeLabel(nodeName);
@@ -262,7 +292,7 @@ export async function POST(request: NextRequest) {
             throw new Error("No assistant response was generated.");
           }
 
-          // Create assistant message
+          // Assistant message creation
           await Message.create({
             userId,
             conversationId,
@@ -270,9 +300,11 @@ export async function POST(request: NextRequest) {
             content: finalAssistantContent,
           });
 
+          // Send title to frontend
           sendEvent({
             type: "done",
             conversationId,
+            ...(generatedTitle ? { title: generatedTitle } : {}),
           });
 
           closeStream();
@@ -309,7 +341,6 @@ export async function POST(request: NextRequest) {
 
     return new Response(readable, {
       status: 200,
-
       headers: {
         "Content-Type": "application/x-ndjson; charset=utf-8",
         "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -322,7 +353,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const { name, message, cause } = getErrorDetails(error);
 
-    console.error("POST /api/chat/[conversationId] error:", {
+    console.error("POST /api/chat error:", {
       name,
       message,
       cause,

@@ -1,16 +1,17 @@
 import { ChatConversationContent } from "@/components/chat/ChatConversation";
 
-interface ChatConversationProps {
-  conversationId: string;
-}
+export default async function ChatConversation({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  // console.log("conversationId:", id);
 
-export default function ChatConversation({
-  conversationId,
-}: ChatConversationProps) {
   return (
     <ChatConversationContent
-      key={conversationId}
-      conversationId={conversationId}
+      key={id}
+      conversationId={id}
     />
   );
 }

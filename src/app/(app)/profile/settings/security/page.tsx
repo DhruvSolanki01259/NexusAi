@@ -44,9 +44,8 @@ export default function SecurityPage() {
 
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
-  
   // Reset all modal state.
-  
+
   const resetState = useCallback(() => {
     setError("");
     setSuccess("");
@@ -62,7 +61,6 @@ export default function SecurityPage() {
     setDeleteConfirmation("");
   }, []);
 
-  
   const closeModal = useCallback(() => {
     if (loading) return;
 
@@ -77,7 +75,6 @@ export default function SecurityPage() {
     },
     [resetState],
   );
-
 
   useEffect(() => {
     if (!modal) return;
@@ -95,7 +92,6 @@ export default function SecurityPage() {
     };
   }, [modal, loading, closeModal]);
 
-  
   useEffect(() => {
     if (!modal) return;
 
@@ -108,8 +104,7 @@ export default function SecurityPage() {
     };
   }, [modal]);
 
-  
-   // Password modal.
+  // Password modal.
   const handlePasswordChange = () => {
     openModal("password");
   };
@@ -211,7 +206,7 @@ export default function SecurityPage() {
     }
   };
 
-  // Account deleteion modal
+  // Account deleteion
   const handleAccountDeletion = () => {
     openModal("delete");
   };
@@ -228,6 +223,55 @@ export default function SecurityPage() {
     try {
       setLoading(true);
 
+      // Delete all the user messages
+      const messagesResponse = await fetch("/api/messages", {
+        method: "DELETE",
+      });
+
+      if (!messagesResponse.ok) {
+        let message = "Unable to delete your messages.";
+
+        try {
+          const data = await messagesResponse.json();
+          message = data?.error || data?.message || message;
+        } catch {}
+
+        throw new Error(message);
+      }
+
+      // Delete all the user conversations
+      const conversationsResponse = await fetch("/api/conversations", {
+        method: "DELETE",
+      });
+
+      if (!conversationsResponse.ok) {
+        let message = "Unable to delete your conversations.";
+
+        try {
+          const data = await conversationsResponse.json();
+          message = data?.error || data?.message || message;
+        } catch {}
+
+        throw new Error(message);
+      }
+
+      // Delete all the user settings
+      const settingsResponse = await fetch("/api/settings", {
+        method: "DELETE",
+      });
+
+      if (!settingsResponse.ok) {
+        let message = "Unable to delete your settings.";
+
+        try {
+          const data = await settingsResponse.json();
+          message = data?.error || data?.message || message;
+        } catch {}
+
+        throw new Error(message);
+      }
+
+      // Delete the authenticated user
       const { error } = await authClient.deleteUser();
 
       if (error) {
@@ -248,7 +292,9 @@ export default function SecurityPage() {
         return;
       }
 
-      setSuccess("Your account has been permanently deleted.");
+      setSuccess(
+        "Your account and all associated data have been permanently deleted.",
+      );
 
       window.setTimeout(() => {
         router.replace("/");
@@ -256,7 +302,12 @@ export default function SecurityPage() {
       }, 900);
     } catch (error) {
       console.error("Delete account error:", error);
-      setError("Something went wrong. Please try again.");
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while deleting your account. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
