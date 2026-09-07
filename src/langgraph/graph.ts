@@ -5,6 +5,7 @@ import { SummarizeNode } from "./nodes/summarize.node";
 import { tools } from "./tools/index";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { AIMessage } from "langchain";
+// import { TitleNode } from "./nodes/title.node";
 
 const graphRouter = async (state: typeof ChatState.State) => {
   const lastMessage = state.messages[state.messages.length - 1];
@@ -22,6 +23,11 @@ const graphRouter = async (state: typeof ChatState.State) => {
     return "summarize";
   }
 
+  // if (!state.title.trim()) {
+  //   console.log(`Routing to [TITLE]`);
+  //   return "title";
+  // }
+
   console.log(`Routing to [END]`);
   return "end";
 };
@@ -29,17 +35,20 @@ const graphRouter = async (state: typeof ChatState.State) => {
 export const graph = new StateGraph(ChatState)
   // Nodes
   .addNode("chat_node", ChatNode)
+  // .addNode("title_node", TitleNode)
   .addNode("summarize_node", SummarizeNode)
   .addNode("tool_node", new ToolNode(tools))
 
   // Edges
   .addEdge(START, "chat_node")
   .addEdge("summarize_node", END)
+  // .addEdge("title_node", END)
   .addEdge("tool_node", "chat_node")
 
   // Conditional Edges
   .addConditionalEdges("chat_node", graphRouter, {
     summarize: "summarize_node",
+    // title: "title_node",
     tools: "tool_node",
     end: END,
   });

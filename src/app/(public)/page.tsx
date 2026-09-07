@@ -9,6 +9,16 @@ import {
   Sparkles,
   Wrench,
 } from "lucide-react";
+import { workflow } from "@/langgraph/workflow";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "langchain";
+import {
+  CalculatorTool,
+  CurrencyConverterTool,
+  MarketDataTool,
+  WeatherTool,
+  WebSearchTool,
+  WorldTimeTool,
+} from "@/langgraph/tools";
 
 interface User {
   name?: string | null;
@@ -59,6 +69,37 @@ const quickActions = [
 ];
 
 export default async function LandingPage() {
+  // Testing CODE
+  // const config = { configurable: { thread_id: "123" } };
+  // const initialState = {
+  //   messages: [
+  //     new HumanMessage(
+  //       "Stock Price of apple and what will the amount i will need to buy 100 apple stocks",
+  //     ),
+  //   ],
+  // };
+  // const { messages, title } = await workflow.invoke(initialState, config);
+
+  // console.log("Title: ", title);
+  // console.log(
+  //   messages.map((msg) => {
+  //     let role = null;
+
+  //     if (msg instanceof HumanMessage) role = "HUMAN";
+  //     else if (msg instanceof AIMessage) role = "AI";
+  //     else if (msg instanceof SystemMessage) role = "SYSTEM";
+  //     else if (msg instanceof ToolMessage) role = "TOOl";
+
+  //     return `${role} - ${msg.content}`;
+  //   }),
+  // );
+
+  //   const response = await CalculatorTool.invoke({
+  //   "expression": "18% * 5000"
+  // });
+  //   console.log(response);
+
+  // Production CODE
   const session = await getSession();
   const user = session?.user;
 

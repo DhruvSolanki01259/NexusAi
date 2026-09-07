@@ -10,4 +10,9 @@ export const ChatState = Annotation.Root({
     value: (_, update) => update,
     default: () => "",
   }),
+
+  title: Annotation<string>({
+    value: (_, update) => update,
+    default: () => "",
+  }),
 });
