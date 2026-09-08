@@ -1,54 +1,61 @@
 import { END, START, StateGraph } from "@langchain/langgraph";
+import { ToolNode } from "@langchain/langgraph/prebuilt";
+import { AIMessage } from "langchain";
+
 import { ChatState } from "./states/chat.state";
 import { ChatNode } from "./nodes/chat.node";
 import { SummarizeNode } from "./nodes/summarize.node";
-import { tools } from "./tools/index";
-import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { AIMessage } from "langchain";
-// import { TitleNode } from "./nodes/title.node";
+import { TitleNode } from "./nodes/title.node";
+import { tools } from "./tools";
 
 const graphRouter = async (state: typeof ChatState.State) => {
   const lastMessage = state.messages[state.messages.length - 1];
+
   if (
     lastMessage instanceof AIMessage &&
     lastMessage.tool_calls &&
     lastMessage.tool_calls.length > 0
   ) {
-    console.log(`Routing to [TOOLS]`);
+    console.log("[ROUTER] Routing to TOOLS");
     return "tools";
   }
 
-  if (state.messages.length > 20) {
-    console.log(`Routing to [SUMMARIZE]`);
+  if (!state.title.trim()) {
+    console.log("[ROUTER] Routing to TITLE");
+    return "title";
+  }
+
+  if (state.messages.length > 10) {
+    console.log("[ROUTER] Routing to SUMMARIZE");
     return "summarize";
   }
 
-  // if (!state.title.trim()) {
-  //   console.log(`Routing to [TITLE]`);
-  //   return "title";
-  // }
-
-  console.log(`Routing to [END]`);
+  console.log("[ROUTER] Routing to END");
   return "end";
 };
 
 export const graph = new StateGraph(ChatState)
+
   // Nodes
   .addNode("chat_node", ChatNode)
-  // .addNode("title_node", TitleNode)
+  .addNode("title_node", TitleNode)
   .addNode("summarize_node", SummarizeNode)
   .addNode("tool_node", new ToolNode(tools))
 
-  // Edges
+  // Start
   .addEdge(START, "chat_node")
-  .addEdge("summarize_node", END)
-  // .addEdge("title_node", END)
+
+  // Tool loop
   .addEdge("tool_node", "chat_node")
 
-  // Conditional Edges
+  // Terminal nodes
+  .addEdge("summarize_node", END)
+  .addEdge("title_node", END)
+
+  // Router
   .addConditionalEdges("chat_node", graphRouter, {
-    summarize: "summarize_node",
-    // title: "title_node",
     tools: "tool_node",
+    summarize: "summarize_node",
+    title: "title_node",
     end: END,
   });

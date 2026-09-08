@@ -70,34 +70,95 @@ const quickActions = [
 
 export default async function LandingPage() {
   // Testing CODE
-  // const config = { configurable: { thread_id: "123" } };
-  // const initialState = {
-  //   messages: [
-  //     new HumanMessage(
-  //       "Stock Price of apple and what will the amount i will need to buy 100 apple stocks",
-  //     ),
-  //   ],
-  // };
-  // const { messages, title } = await workflow.invoke(initialState, config);
+  // const sleep = (ms: number) =>
+  //   new Promise((resolve) => setTimeout(resolve, ms));
 
-  // console.log("Title: ", title);
-  // console.log(
-  //   messages.map((msg) => {
+  // const config = {
+  //   configurable: {
+  //     thread_id: "short-term-memory-test",
+  //   },
+  // };
+
+  // const testMessages = [
+  //   // "Hii, my name is Dhruv Solanki.",
+  //   // "I recently graduated from KJ Somaiya Institute of Technology.",
+  //   // "My favorite programming language is TypeScript.",
+  //   // "I am currently working on a project called Nexus AI.",
+  //   // "Nexus AI is an AI assistant that I am building.",
+  //   // "I want Nexus AI to have short-term and long-term memory.",
+  //   // "My favorite frontend framework is Next.js.",
+  //   // "For the backend, I am using Node.js and TypeScript.",
+  //   "I am using LangGraph to build the AI workflow.",
+  //   "If you combine everything I've told you so far, describe what Nexus AI is and what I am trying to build.",
+  // ];
+
+  // let response;
+
+  // for (let i = 0; i < testMessages.length; i++) {
+  //   console.log(`\n\n========== REQUEST ${i + 1} ==========`);
+  //   console.log(`USER: ${testMessages[i]}`);
+
+  //   response = await workflow.invoke(
+  //     {
+  //       messages: [new HumanMessage(testMessages[i])],
+  //     },
+  //     config,
+  //   );
+
+  //   // Display the same response structure after EVERY invocation
+  //   console.log(`\n========== RESPONSE ${i + 1} ==========`);
+
+  //   console.log(
+  //     response.messages.map((m) => {
+  //       let role = null;
+
+  //       if (m instanceof AIMessage) role = "AI";
+  //       else if (m instanceof ToolMessage) role = "TOOL";
+  //       else if (m instanceof HumanMessage) role = "HUMAN";
+  //       else if (m instanceof SystemMessage) role = "SYSTEM";
+
+  //       return `${role} - ${m.content}`;
+  //     }),
+  //   );
+
+  //   // Wait 15 seconds before the next invocation
+  //   if (i < testMessages.length - 1) {
+  //     console.log("\nWaiting 30 seconds...");
+  //     await sleep(30_000);
+  //   }
+  // }
+
+  // console.log("\n\n========================================");
+  // console.log("           FINAL RESPONSE");
+  // console.log("========================================");
+
+  // console.log({
+  //   messages: response!.messages.map((m) => {
   //     let role = null;
 
-  //     if (msg instanceof HumanMessage) role = "HUMAN";
-  //     else if (msg instanceof AIMessage) role = "AI";
-  //     else if (msg instanceof SystemMessage) role = "SYSTEM";
-  //     else if (msg instanceof ToolMessage) role = "TOOl";
+  //     if (m instanceof AIMessage) role = "AI";
+  //     else if (m instanceof ToolMessage) role = "TOOL";
+  //     else if (m instanceof HumanMessage) role = "HUMAN";
+  //     else if (m instanceof SystemMessage) role = "SYSTEM";
 
-  //     return `${role} - ${msg.content}`;
+  //     return `${role} - ${m.content}`;
   //   }),
-  // );
-
-  //   const response = await CalculatorTool.invoke({
-  //   "expression": "18% * 5000"
+  //   summary: response?.conversation_summary,
+  //   title: response?.title,
   // });
-  //   console.log(response);
+
+  // const config = {
+  //   configurable: {
+  //     thread_id: "short-term-memory-test",
+  //   },
+  //   metadata: {
+  //     userId: "user-123",
+  //     personalization: true,
+  //   }
+  // };
+  // const initialState = {messages: [new HumanMessage("Hii my name is dhruv")]}
+  // const response = await workflow.invoke(initialState, config)
+  // console.log(response.messages)
 
   // Production CODE
   const session = await getSession();

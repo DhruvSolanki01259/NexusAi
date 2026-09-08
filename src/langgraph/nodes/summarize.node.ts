@@ -6,8 +6,8 @@ import { groq } from "@/ai_components/models";
 
 const model = groq;
 
-const MAX_MESSAGES_LIMIT = 20;
-const KEEP_LATEST_MESSAGES = 6;
+const MAX_MESSAGES_LIMIT = 10;
+const KEEP_LATEST_MESSAGES = 4;
 
 const getPrompt = async (state: typeof ChatState.State) => {
   const messagesToTrim = state.messages.slice(0, -KEEP_LATEST_MESSAGES);
