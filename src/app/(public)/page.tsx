@@ -9,16 +9,8 @@ import {
   Sparkles,
   Wrench,
 } from "lucide-react";
+import { HumanMessage } from "langchain";
 import { workflow } from "@/langgraph/workflow";
-import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "langchain";
-import {
-  CalculatorTool,
-  CurrencyConverterTool,
-  MarketDataTool,
-  WeatherTool,
-  WebSearchTool,
-  WorldTimeTool,
-} from "@/langgraph/tools";
 
 interface User {
   name?: string | null;
@@ -69,100 +61,41 @@ const quickActions = [
 ];
 
 export default async function LandingPage() {
-  // Testing CODE
-  // const sleep = (ms: number) =>
-  //   new Promise((resolve) => setTimeout(resolve, ms));
-
-  // const config = {
-  //   configurable: {
-  //     thread_id: "short-term-memory-test",
-  //   },
-  // };
-
-  // const testMessages = [
-  //   // "Hii, my name is Dhruv Solanki.",
-  //   // "I recently graduated from KJ Somaiya Institute of Technology.",
-  //   // "My favorite programming language is TypeScript.",
-  //   // "I am currently working on a project called Nexus AI.",
-  //   // "Nexus AI is an AI assistant that I am building.",
-  //   // "I want Nexus AI to have short-term and long-term memory.",
-  //   // "My favorite frontend framework is Next.js.",
-  //   // "For the backend, I am using Node.js and TypeScript.",
-  //   "I am using LangGraph to build the AI workflow.",
-  //   "If you combine everything I've told you so far, describe what Nexus AI is and what I am trying to build.",
-  // ];
-
-  // let response;
-
-  // for (let i = 0; i < testMessages.length; i++) {
-  //   console.log(`\n\n========== REQUEST ${i + 1} ==========`);
-  //   console.log(`USER: ${testMessages[i]}`);
-
-  //   response = await workflow.invoke(
-  //     {
-  //       messages: [new HumanMessage(testMessages[i])],
-  //     },
-  //     config,
-  //   );
-
-  //   // Display the same response structure after EVERY invocation
-  //   console.log(`\n========== RESPONSE ${i + 1} ==========`);
-
-  //   console.log(
-  //     response.messages.map((m) => {
-  //       let role = null;
-
-  //       if (m instanceof AIMessage) role = "AI";
-  //       else if (m instanceof ToolMessage) role = "TOOL";
-  //       else if (m instanceof HumanMessage) role = "HUMAN";
-  //       else if (m instanceof SystemMessage) role = "SYSTEM";
-
-  //       return `${role} - ${m.content}`;
-  //     }),
-  //   );
-
-  //   // Wait 15 seconds before the next invocation
-  //   if (i < testMessages.length - 1) {
-  //     console.log("\nWaiting 30 seconds...");
-  //     await sleep(30_000);
-  //   }
-  // }
-
-  // console.log("\n\n========================================");
-  // console.log("           FINAL RESPONSE");
-  // console.log("========================================");
-
-  // console.log({
-  //   messages: response!.messages.map((m) => {
-  //     let role = null;
-
-  //     if (m instanceof AIMessage) role = "AI";
-  //     else if (m instanceof ToolMessage) role = "TOOL";
-  //     else if (m instanceof HumanMessage) role = "HUMAN";
-  //     else if (m instanceof SystemMessage) role = "SYSTEM";
-
-  //     return `${role} - ${m.content}`;
-  //   }),
-  //   summary: response?.conversation_summary,
-  //   title: response?.title,
-  // });
-
-  // const config = {
-  //   configurable: {
-  //     thread_id: "short-term-memory-test",
-  //   },
-  //   metadata: {
-  //     userId: "user-123",
-  //     personalization: true,
-  //   }
-  // };
-  // const initialState = {messages: [new HumanMessage("Hii my name is dhruv")]}
-  // const response = await workflow.invoke(initialState, config)
-  // console.log(response.messages)
-
-  // Production CODE
   const session = await getSession();
   const user = session?.user;
+
+  // TESTING
+  const userId = user?.id;
+  const config = {
+    configurable: { thread_id: "user-123" },
+    metadata: {
+      userId,
+      personalization: {
+        enabled: true,
+        nickname: "ALEXA",
+        profession: "Youtuber",
+        interests: "",
+        responseStyle: "",
+        responseLength: "",
+        technicalLevel: "",
+        emojis: true,
+        structuredResponses: false,
+        instructions: "",
+      },
+    },
+  };
+  const initialState1 = {
+    messages: [
+      new HumanMessage(
+        "what was the first message that i sent you?",
+      ),
+    ],
+  };
+  const response = await workflow.invoke(initialState1, config);
+  console.log(response.messages.at(-1)?.content);
+
+  // const initialState2 = {messages: [new HumanMessage("hiii, my name is dhruv solanki")]}
+  // const initialState3 = {messages: [new HumanMessage("hiii, my name is dhruv solanki")]}
 
   return (
     <main className="bg-[#272d2d] text-[#edf5fc]">

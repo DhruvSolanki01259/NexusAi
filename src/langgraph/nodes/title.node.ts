@@ -1,7 +1,7 @@
+import { titleGroq } from "@/ai_components/models/groq-provider/groq";
 import { AIMessage, HumanMessage } from "langchain";
 import { ChatState } from "../states/chat.state";
 import { z } from "zod";
-import { groq } from "@/ai_components/models/index";
 
 const TitleSchema = z.object({
   title: z
@@ -11,7 +11,7 @@ const TitleSchema = z.object({
     .describe("A concise conversation title, ideally 3 to 6 words."),
 });
 
-const titleModel = groq;
+const titleModel = titleGroq;
 
 const structuredTitleModel = titleModel.withStructuredOutput(TitleSchema);
 

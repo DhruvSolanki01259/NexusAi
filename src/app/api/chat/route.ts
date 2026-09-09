@@ -11,6 +11,7 @@ import {
 import Message from "@/lib/models/message.model";
 import { HumanMessage } from "langchain";
 import { NextRequest } from "next/server";
+import Personalization from "@/lib/models/personalization.model";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,7 +114,31 @@ export async function POST(request: NextRequest) {
     let config;
 
     try {
-      config = getConversationConfig(conversationId);
+      const personalization = await Personalization.find({ userId }).lean();
+      const {
+        enabled,
+        nickname,
+        profession,
+        interests,
+        responseStyle,
+        responseLength,
+        technicalLevel,
+        emojis,
+        structuredResponses,
+        instructions,
+      } = personalization;
+      config = getConversationConfig(conversationId, userId, {
+        enabled,
+        nickname,
+        profession,
+        interests,
+        responseStyle,
+        responseLength,
+        technicalLevel,
+        emojis,
+        structuredResponses,
+        instructions,
+      });
     } catch (error) {
       const { name, message, cause } = getErrorDetails(error);
 

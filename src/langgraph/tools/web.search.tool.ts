@@ -1,4 +1,4 @@
-import { tavilyClient } from "@/ai_components/models/index";
+import { tavilyClient } from "@/ai_components/models/web-search/tavily";
 import { tool } from "langchain";
 import z from "zod";
 

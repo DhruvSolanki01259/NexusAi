@@ -2,9 +2,9 @@ import { SHORT_TERM_MEMORY_PROMPT } from "@/ai_components/prompts/short.term.mem
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "langchain";
 import { RemoveMessage } from "@langchain/core/messages";
 import { ChatState } from "../states/chat.state";
-import { groq } from "@/ai_components/models";
+import { summarizeGroq } from "@/ai_components/models/groq-provider/groq";
 
-const model = groq;
+const model = summarizeGroq;
 
 const MAX_MESSAGES_LIMIT = 10;
 const KEEP_LATEST_MESSAGES = 4;

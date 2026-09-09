@@ -15,4 +15,9 @@ export const ChatState = Annotation.Root({
     value: (_, update) => update,
     default: () => "",
   }),
+
+  userQuery: Annotation<string>({
+    value: (_, update) => update,
+    default: () => "",
+  }),
 });
