@@ -149,8 +149,10 @@ export default function ChatPage() {
                   NEXUS AI is a learning project built through hands-on
                   experimentation and tested across multiple cases. It uses the
                   free tier of the Groq model, so some requests may occasionally
-                  hit a TPM limit. Responses may take a little longer in those
-                  cases.
+                  hit TPM (Tokens Per Minute) or TPD (Tokens Per Day) limits.
+                  The daily token limit is 200,000 tokens. Responses may take a
+                  little longer in some cases, and the service may become
+                  temporarily unavailable if the daily limit is reached.
                 </p>
               </div>
             </div>
