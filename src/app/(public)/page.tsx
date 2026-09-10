@@ -64,39 +64,6 @@ export default async function LandingPage() {
   const session = await getSession();
   const user = session?.user;
 
-  // TESTING
-  const userId = user?.id;
-  const config = {
-    configurable: { thread_id: "user-123" },
-    metadata: {
-      userId,
-      personalization: {
-        enabled: true,
-        nickname: "ALEXA",
-        profession: "Youtuber",
-        interests: "",
-        responseStyle: "",
-        responseLength: "",
-        technicalLevel: "",
-        emojis: true,
-        structuredResponses: false,
-        instructions: "",
-      },
-    },
-  };
-  const initialState1 = {
-    messages: [
-      new HumanMessage(
-        "what was the first message that i sent you?",
-      ),
-    ],
-  };
-  const response = await workflow.invoke(initialState1, config);
-  console.log(response.messages.at(-1)?.content);
-
-  // const initialState2 = {messages: [new HumanMessage("hiii, my name is dhruv solanki")]}
-  // const initialState3 = {messages: [new HumanMessage("hiii, my name is dhruv solanki")]}
-
   return (
     <main className="bg-[#272d2d] text-[#edf5fc]">
       {user ? <AuthenticatedLanding user={user} /> : <PublicLanding />}

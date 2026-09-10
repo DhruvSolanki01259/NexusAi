@@ -23,12 +23,15 @@ interface GenerationStatus {
   type: "thinking" | "memory" | "tool" | "generating" | "workflow";
 }
 
-interface ChatStreamEvent {
-  type: "token" | "status" | "done" | "error";
+export interface ChatStreamEvent {
+  type: "token" | "status" | "title" | "done" | "error";
   content?: string;
   node?: string;
   message?: string;
   conversationId?: string;
+  title?: string;
+  code?: string;
+  retryAfter?: number;
 }
 
 const INITIAL_TITLE = "New Conversation";
@@ -40,13 +43,12 @@ export function createMessageId() {
   ) {
     return crypto.randomUUID();
   }
-
   return `message-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function formatNodeName(node: string) {
   return node
-    .replace(/[\_-]+/g, " ")
+    .replace(/[\\_-]+/g, " ")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/\s+/g, " ")
     .trim()
@@ -57,13 +59,10 @@ export function formatMessageDate(value?: string) {
   if (!value) {
     return undefined;
   }
-
   const date = new Date(value);
-
   if (Number.isNaN(date.getTime())) {
     return undefined;
   }
-
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
@@ -151,17 +150,14 @@ export function normalizeMessage(
   const raw = message as Record<string, unknown>;
 
   const role = raw.role;
-
   if (role !== "user" && role !== "assistant") {
     console.warn(
       `[Messages GET] Ignoring message with invalid role at index ${index}`,
     );
-
     return null;
   }
 
   let content = "";
-
   if (typeof raw.content === "string") {
     content = raw.content;
   } else if (typeof raw.text === "string") {
@@ -171,7 +167,6 @@ export function normalizeMessage(
   }
 
   let id: string;
-
   if (typeof raw.id === "string") {
     id = raw.id;
   } else if (typeof raw._id === "string") {
@@ -196,7 +191,6 @@ export function normalizeMessage(
   }
 
   let rawCreatedAt: string | undefined;
-
   if (typeof raw.createdAt === "string") {
     rawCreatedAt = raw.createdAt;
   } else if (raw.createdAt instanceof Date) {
@@ -264,7 +258,6 @@ export function extractMessagesFromResponse(
 
     if (data.conversation && typeof data.conversation === "object") {
       const conversation = data.conversation as Record<string, unknown>;
-
       if (Array.isArray(conversation.messages)) {
         return conversation.messages;
       }
@@ -299,7 +292,6 @@ export function extractConversationTitle(payload: MessagesResponse): string {
 
     if (data.conversation && typeof data.conversation === "object") {
       const conversation = data.conversation as Record<string, unknown>;
-
       if (typeof conversation.title === "string" && conversation.title.trim()) {
         return conversation.title.trim();
       }
@@ -320,6 +312,7 @@ export function parseStreamLine(line: string): ChatStreamEvent | null {
     const parsed: unknown = JSON.parse(trimmed);
 
     if (!parsed || typeof parsed !== "object") {
+      console.warn("[Chat Stream] Ignoring malformed event:", parsed);
       return null;
     }
 
@@ -328,16 +321,25 @@ export function parseStreamLine(line: string): ChatStreamEvent | null {
     if (
       event.type !== "token" &&
       event.type !== "status" &&
+      event.type !== "title" &&
       event.type !== "done" &&
       event.type !== "error"
     ) {
       console.warn("[Chat Stream] Ignoring unknown event:", event);
-
       return null;
     }
 
-    return {
-      type: event.type,
+    let retryAfter: number | undefined;
+    if (
+      typeof event.retryAfter === "number" &&
+      Number.isFinite(event.retryAfter) &&
+      event.retryAfter > 0
+    ) {
+      retryAfter = event.retryAfter;
+    }
+
+    const streamEvent: ChatStreamEvent = {
+      type: event.type as ChatStreamEvent["type"],
       content: typeof event.content === "string" ? event.content : undefined,
       node: typeof event.node === "string" ? event.node : undefined,
       message: typeof event.message === "string" ? event.message : undefined,
@@ -345,10 +347,14 @@ export function parseStreamLine(line: string): ChatStreamEvent | null {
         typeof event.conversationId === "string"
           ? event.conversationId
           : undefined,
+      title: typeof event.title === "string" ? event.title : undefined,
+      code: typeof event.code === "string" ? event.code : undefined,
+      retryAfter,
     };
+
+    return streamEvent;
   } catch (error) {
     console.warn("[Chat Stream] Failed to parse NDJSON line:", error);
-
     return null;
   }
 }

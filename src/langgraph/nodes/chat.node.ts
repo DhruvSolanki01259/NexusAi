@@ -1,56 +1,67 @@
 import { chatGroq } from "@/ai_components/models/groq-provider/groq";
+import { chatSystemPrompt } from "@/ai_components/utils/createChatSystemPrompt";
+import { USER_CONVERSATION_PROMPT } from "@/ai_components/prompts/user.conversation.prompt";
+
 import { RunnableConfig } from "@langchain/core/runnables";
-import { ChatState } from "../states/chat.state";
-import { tools } from "../tools/index";
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "langchain";
 
-import { USER_CONVERSATION_PROMPT } from "@/ai_components/prompts/user.conversation.prompt";
-import { chatSystemPrompt } from "@/ai_components/utils/createChatSystemPrompt";
+import { ChatState } from "../states/chat.state";
+import { tools } from "../tools";
 
-const model = chatGroq;
-
-const modelWithTools = model.bindTools(tools);
+const modelWithTools = chatGroq.bindTools(tools);
 
 export const ChatNode = async (
   state: typeof ChatState.State,
   config: RunnableConfig,
 ) => {
-  let query: string | null = null;
-
+  // Get the latest message
   const lastMessage = state.messages.at(-1);
 
+  let userQuery: string | undefined;
+
   if (lastMessage instanceof HumanMessage) {
-    query =
+    userQuery =
       typeof lastMessage.content === "string"
         ? lastMessage.content
         : String(lastMessage.content);
   }
 
-  const SystemPrompt = await chatSystemPrompt(config);
-  const HumanPrompt = USER_CONVERSATION_PROMPT;
+  // Build the dynamic system prompt
+  const systemPrompt = await chatSystemPrompt(config);
 
-  const { conversation_summary: summary } = state;
-
-  const conversationHistory = state.messages.map((msg) => {
+  // Build conversation history
+  const conversationHistory = state.messages.map((message) => {
     let role = "UNKNOWN";
 
-    if (msg instanceof AIMessage) role = "AI";
-    else if (msg instanceof ToolMessage) role = "TOOL";
-    else if (msg instanceof HumanMessage) role = "HUMAN";
-    else if (msg instanceof SystemMessage) role = "SYSTEM";
+    if (message instanceof HumanMessage) {
+      role = "HUMAN";
+    } else if (message instanceof AIMessage) {
+      role = "AI";
+    } else if (message instanceof ToolMessage) {
+      role = "TOOL";
+    } else if (message instanceof SystemMessage) {
+      role = "SYSTEM";
+    }
 
-    return `${role} - ${msg.content}`;
+    const content =
+      typeof message.content === "string"
+        ? message.content
+        : JSON.stringify(message.content);
+
+    return `${role} - ${content}`;
   });
 
-  const formattedHumanPrompt = await HumanPrompt.format({
+  // Format the conversation prompt
+  const formattedHumanPrompt = await USER_CONVERSATION_PROMPT.format({
     userLatestConversationHistory: conversationHistory,
-    userOldConversationSummary: summary ?? "",
+    userOldConversationSummary: state.conversation_summary ?? "",
   });
 
+  // Invoke the model
   const response = await modelWithTools.invoke([
     {
       role: "system",
-      content: SystemPrompt ?? "",
+      content: systemPrompt ?? "",
     },
     {
       role: "human",
@@ -58,8 +69,15 @@ export const ChatNode = async (
     },
   ]);
 
+  // Return state updates
+  if (userQuery !== undefined) {
+    return {
+      messages: [response],
+      userQuery,
+    };
+  }
+
   return {
     messages: [response],
-    userQuery: query,
   };
 };

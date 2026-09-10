@@ -8,19 +8,9 @@ import {
   useRef,
   useState,
 } from "react";
-
-import {
-  ArrowUp,
-  Check,
-  CircleStop,
-  Sparkles,
-  X,
-} from "lucide-react";
-
+import { ArrowUp, Check, CircleStop, Sparkles, X } from "lucide-react";
 import { MessageBubble } from "./messages/MessageBubble";
 import { NexusAvatar } from "./NexusAvatar";
-import { getStatusIcon } from "./messages/streaming/Icon";
-
 import {
   createMessageId,
   extractMessagesFromResponse,
@@ -30,6 +20,7 @@ import {
   normalizeMessages,
   parseStreamLine,
 } from "@/utils/streaming/streamingUtils";
+import { getStatusIcon } from "./messages/streaming/Icon";
 
 interface Message {
   id: string;
@@ -67,20 +58,128 @@ interface GenerationStatus {
 }
 
 interface ChatStreamEvent {
-  type: "token" | "status" | "done" | "error";
+  type: "token" | "status" | "title" | "done" | "error";
   content?: string;
   node?: string;
   message?: string;
   conversationId?: string;
   title?: string;
+  code?: string;
+  retryAfter?: number;
 }
 
 interface ChatConversationProps {
   conversationId: string;
 }
 
+interface ChatErrorPayload {
+  code?: string;
+  message?: string;
+  retryAfter?: number;
+  error?: {
+    code?: string;
+    message?: string;
+    retryAfter?: number;
+  };
+  data?: {
+    code?: string;
+    message?: string;
+    retryAfter?: number;
+  };
+}
+
 const INITIAL_TITLE = "New Conversation";
 const MAX_MESSAGE_LENGTH = 12000;
+
+const isRateLimitError = (error: unknown): boolean => {
+  if (!error) {
+    return false;
+  }
+  const errorObject =
+    typeof error === "object" && error !== null
+      ? (error as Record<string, unknown>)
+      : null;
+  const code =
+    typeof errorObject?.code === "string" ? errorObject.code.toLowerCase() : "";
+  const message =
+    typeof errorObject?.message === "string"
+      ? errorObject.message.toLowerCase()
+      : error instanceof Error
+        ? error.message.toLowerCase()
+        : "";
+  return (
+    code === "ai_rate_limited" ||
+    code === "rate_limit_exceeded" ||
+    code === "ratelimit" ||
+    message.includes("ratelimit") ||
+    message.includes("rate limit") ||
+    message.includes("rate_limit_exceeded") ||
+    message.includes("tokens per day") ||
+    message.includes("tokens per minute") ||
+    message.includes("429")
+  );
+};
+
+const getRateLimitMessage = (retryAfter?: number): string => {
+  if (
+    typeof retryAfter === "number" &&
+    Number.isFinite(retryAfter) &&
+    retryAfter > 0
+  ) {
+    const totalSeconds = Math.ceil(retryAfter);
+    if (totalSeconds < 60) {
+      return `NEXUS is temporarily busy because the AI provider has reached its usage limit. Please try again in about ${totalSeconds} second${totalSeconds === 1 ? "" : "s"}.`;
+    }
+    const minutes = Math.ceil(totalSeconds / 60);
+    return `NEXUS is temporarily busy because the AI provider has reached its usage limit. Please try again in about ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+  }
+  return "NEXUS is temporarily busy because the AI provider has reached its usage limit. Please try again shortly.";
+};
+
+const extractErrorPayload = (payload: unknown): ChatErrorPayload => {
+  if (!payload || typeof payload !== "object") {
+    return {};
+  }
+  const value = payload as ChatErrorPayload;
+  return {
+    code:
+      typeof value.code === "string"
+        ? value.code
+        : typeof value.error?.code === "string"
+          ? value.error.code
+          : typeof value.data?.code === "string"
+            ? value.data.code
+            : undefined,
+    message:
+      typeof value.message === "string"
+        ? value.message
+        : typeof value.error?.message === "string"
+          ? value.error.message
+          : typeof value.data?.message === "string"
+            ? value.data.message
+            : undefined,
+    retryAfter:
+      typeof value.retryAfter === "number"
+        ? value.retryAfter
+        : typeof value.error?.retryAfter === "number"
+          ? value.error.retryAfter
+          : typeof value.data?.retryAfter === "number"
+            ? value.data.retryAfter
+            : undefined,
+  };
+};
+
+const getRetryAfterFromResponse = (response: Response): number | undefined => {
+  const retryAfter = response.headers.get("Retry-After");
+  if (!retryAfter) {
+    return undefined;
+  }
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return seconds;
+  }
+  return undefined;
+};
 
 export function ChatConversationContent({
   conversationId,
@@ -89,7 +188,6 @@ export function ChatConversationContent({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [status, setStatus] = useState<GenerationStatus | null>(null);
   const [completedNodes, setCompletedNodes] = useState<string[]>([]);
-  const [showMobileTitle, setShowMobileTitle] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [title, setTitle] = useState(INITIAL_TITLE);
@@ -101,14 +199,18 @@ export function ChatConversationContent({
   const streamingAssistantIdRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
-  const persistedTitleRef = useRef<string | null>(null);
+  const activeConversationIdRef = useRef(conversationId);
+  const streamErrorRef = useRef(false);
+
+  useEffect(() => {
+    activeConversationIdRef.current = conversationId;
+  }, [conversationId]);
 
   const loadConversation = useCallback(
     async (signal?: AbortSignal) => {
       if (!conversationId) {
         return;
       }
-
       const response = await fetch(
         `/api/conversations/${encodeURIComponent(conversationId)}`,
         {
@@ -120,89 +222,49 @@ export function ChatConversationContent({
           signal,
         },
       );
-
       if (!response.ok) {
         let message = "Failed to load conversation.";
-
         try {
           const errorPayload = await response.json();
-
           message =
             errorPayload?.message ||
             errorPayload?.error ||
             errorPayload?.data?.message ||
             message;
         } catch {}
-
         throw new Error(message);
       }
-
       const payload: ConversationResponse = await response.json();
-
       const conversationTitle =
         payload?.data?.title?.trim() || payload?.title?.trim() || "";
-
-      if (conversationTitle) {
-        setTitle(conversationTitle);
-        persistedTitleRef.current = conversationTitle;
-      } else {
-        setTitle(INITIAL_TITLE);
-        persistedTitleRef.current = null;
-      }
+      setTitle(conversationTitle || INITIAL_TITLE);
     },
     [conversationId],
   );
 
-  const persistConversationTitle = useCallback(
-    async (generatedTitle: string) => {
-      const normalizedTitle = generatedTitle.trim();
-
-      if (!conversationId || !normalizedTitle) {
+  const handleTitleUpdate = useCallback(
+    (newTitle: string) => {
+      const normalizedTitle = newTitle.trim();
+      if (!normalizedTitle) {
         return;
       }
-      if (persistedTitleRef.current === normalizedTitle) {
+      if (activeConversationIdRef.current !== conversationId) {
+        console.log(
+          "[ChatConversation] Ignoring stale title event:",
+          conversationId,
+        );
         return;
       }
-
-      try {
-        const response = await fetch(
-          `/api/conversations/${encodeURIComponent(conversationId)}`,
-          {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-            body: JSON.stringify({
-              title: normalizedTitle,
-            }),
+      console.log("[ChatConversation] Title received:", normalizedTitle);
+      setTitle(normalizedTitle);
+      window.dispatchEvent(
+        new CustomEvent("conversation-title-updated", {
+          detail: {
+            conversationId,
+            title: normalizedTitle,
           },
-        );
-
-        if (!response.ok) {
-          let message = "Failed to save conversation title.";
-
-          try {
-            const errorPayload = await response.json();
-
-            message =
-              errorPayload?.message ||
-              errorPayload?.error ||
-              errorPayload?.data?.message ||
-              message;
-          } catch {}
-
-          throw new Error(message);
-        }
-
-        setTitle(normalizedTitle);
-        persistedTitleRef.current = normalizedTitle;
-      } catch (error) {
-        console.error(
-          "[Conversation PATCH] Failed to persist conversation title:",
-          error,
-        );
-      }
+        }),
+      );
     },
     [conversationId],
   );
@@ -211,15 +273,11 @@ export function ChatConversationContent({
     if (!conversationId) {
       return;
     }
-
     const controller = new AbortController();
-
     const loadMessages = async () => {
       setIsLoadingConversation(true);
-
       try {
         await loadConversation(controller.signal);
-
         if (controller.signal.aborted) {
           return;
         }
@@ -234,43 +292,34 @@ export function ChatConversationContent({
             signal: controller.signal,
           },
         );
-
         if (!response.ok) {
           let message = "Failed to load conversation.";
-
           try {
             const errorPayload = await response.json();
-
             message =
               errorPayload?.message ||
               errorPayload?.error ||
               errorPayload?.data?.message ||
               message;
           } catch {}
-
           throw new Error(message);
         }
-
         const payload: MessagesResponse = await response.json();
-
         if (controller.signal.aborted) {
           return;
         }
         const rawMessages = extractMessagesFromResponse(payload);
         const normalizedMessages = normalizeMessages(rawMessages);
-
         setMessages(normalizedMessages);
         setErrorMessage(null);
         setIsGenerating(false);
         setStatus(null);
         setCompletedNodes([]);
         shouldAutoScrollRef.current = true;
-
         requestAnimationFrame(() => {
           if (controller.signal.aborted) {
             return;
           }
-
           bottomRef.current?.scrollIntoView({
             behavior: "auto",
             block: "end",
@@ -280,22 +329,14 @@ export function ChatConversationContent({
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
         }
-
         if (error instanceof Error && error.name === "AbortError") {
           return;
         }
-
         if (controller.signal.aborted) {
           return;
         }
-
-        console.error(
-          "[Conversation / Messages GET] Failed to load conversation:",
-          error,
-        );
-
+        console.error("[ChatConversation] Failed to load:", error);
         setMessages([]);
-
         setErrorMessage(
           error instanceof Error && error.message
             ? error.message
@@ -307,9 +348,7 @@ export function ChatConversationContent({
         }
       }
     };
-
     void loadMessages();
-
     return () => {
       controller.abort();
     };
@@ -317,22 +356,17 @@ export function ChatConversationContent({
 
   const conversationIsLoading =
     Boolean(conversationId) && isLoadingConversation;
-
   const visibleErrorMessage = !conversationId
     ? "Conversation ID is missing."
     : errorMessage;
 
   const resizeTextarea = useCallback(() => {
     const textarea = textareaRef.current;
-
     if (!textarea) {
       return;
     }
-
     textarea.style.height = "auto";
-
     const nextHeight = Math.min(textarea.scrollHeight, 160);
-
     textarea.style.height = `${nextHeight}px`;
   }, []);
 
@@ -344,7 +378,6 @@ export function ChatConversationContent({
     if (!shouldAutoScrollRef.current) {
       return;
     }
-
     bottomRef.current?.scrollIntoView({
       behavior,
       block: "end",
@@ -355,7 +388,6 @@ export function ChatConversationContent({
     if (!messages.length) {
       return;
     }
-
     scrollToBottom("smooth");
   }, [messages, scrollToBottom]);
 
@@ -363,56 +395,58 @@ export function ChatConversationContent({
     if (event.type !== "status") {
       return;
     }
-
     const node = event.node || "workflow";
-
     setStatus(getNodeStatus(node));
-
     setCompletedNodes((previous) => {
       if (previous.includes(node)) {
         return previous;
       }
-
       const statusMessage = event.message?.toLowerCase() || "";
-
       if (
         statusMessage.includes("completed") ||
         statusMessage.includes("complete")
       ) {
         return [...previous, node];
       }
-
       return previous;
     });
   }, []);
 
   const handleStreamEvent = useCallback(
-    (
-      streamEvent: ChatStreamEvent,
-      generatedTitleRef: { current: string | null },
-    ) => {
+    (streamEvent: ChatStreamEvent) => {
+      if (streamEvent.type === "title") {
+        const generatedTitle = streamEvent.title?.trim();
+        if (!generatedTitle) {
+          return;
+        }
+        if (
+          streamEvent.conversationId &&
+          streamEvent.conversationId !== conversationId
+        ) {
+          console.log(
+            "[ChatConversation] Ignoring title for another conversation:",
+            streamEvent.conversationId,
+          );
+          return;
+        }
+        handleTitleUpdate(generatedTitle);
+        return;
+      }
+
       if (streamEvent.type === "status") {
         updateStatus(streamEvent);
         return;
       }
 
-      if (streamEvent.title?.trim()) {
-        generatedTitleRef.current = streamEvent.title.trim();
-      }
-
       if (streamEvent.type === "token") {
         const token = streamEvent.content || "";
-
         if (!token) {
           return;
         }
-
         const assistantId =
           streamingAssistantIdRef.current || createMessageId();
-
         if (!streamingAssistantIdRef.current) {
           streamingAssistantIdRef.current = assistantId;
-
           setMessages((previous) => [
             ...previous,
             {
@@ -428,39 +462,55 @@ export function ChatConversationContent({
               message.id === assistantId
                 ? {
                     ...message,
-                    content: `${message.content}${token}`,
+                    content: message.content + token,
                   }
                 : message,
             ),
           );
         }
-
         return;
       }
 
       if (streamEvent.type === "error") {
-        setErrorMessage(
-          streamEvent.message ||
-            "Something went wrong while generating the response.",
-        );
-
+        const rateLimited =
+          streamEvent.code === "AI_RATE_LIMITED" ||
+          isRateLimitError({
+            code: streamEvent.code,
+            message: streamEvent.message,
+          });
+        streamErrorRef.current = true;
+        if (rateLimited) {
+          setErrorMessage(getRateLimitMessage(streamEvent.retryAfter));
+        } else {
+          setErrorMessage(
+            streamEvent.message ||
+              "NEXUS could not generate a response. Please try again.",
+          );
+        }
         setIsGenerating(false);
         setStatus(null);
+        setCompletedNodes([]);
         return;
       }
 
       if (streamEvent.type === "done") {
+        if (streamEvent.title?.trim()) {
+          handleTitleUpdate(streamEvent.title);
+        }
+        if (streamErrorRef.current) {
+          return;
+        }
         setStatus(null);
+        return;
       }
     },
-    [updateStatus],
+    [conversationId, handleTitleUpdate, updateStatus],
   );
 
   const refreshMessages = useCallback(async () => {
     if (!conversationId) {
       return;
     }
-
     try {
       const response = await fetch(
         `/api/messages/${encodeURIComponent(conversationId)}`,
@@ -472,18 +522,13 @@ export function ChatConversationContent({
           cache: "no-store",
         },
       );
-
       if (!response.ok) {
         return;
       }
-
       const payload: MessagesResponse = await response.json();
-
       const rawMessages = extractMessagesFromResponse(payload);
       const normalizedMessages = normalizeMessages(rawMessages);
-
       setMessages(normalizedMessages);
-
       requestAnimationFrame(() => {
         bottomRef.current?.scrollIntoView({
           behavior: "smooth",
@@ -491,32 +536,24 @@ export function ChatConversationContent({
         });
       });
     } catch (error) {
-      console.error(
-        "[Conversation / Messages GET] Failed to refresh messages:",
-        error,
-      );
+      console.error("[ChatConversation] Failed to refresh messages:", error);
     }
   }, [conversationId]);
 
   const handleSubmit = useCallback(
     async (event?: FormEvent<HTMLFormElement>) => {
       event?.preventDefault();
-
       if (isGenerating) {
         return;
       }
-
       const query = input.trim();
-
       if (!query) {
         return;
       }
-
       if (!conversationId) {
         setErrorMessage("Conversation ID is missing.");
         return;
       }
-
       if (query.length > MAX_MESSAGE_LENGTH) {
         setErrorMessage(
           `Message cannot exceed ${MAX_MESSAGE_LENGTH.toLocaleString()} characters.`,
@@ -525,15 +562,11 @@ export function ChatConversationContent({
       }
 
       chatAbortControllerRef.current?.abort();
-
       const controller = new AbortController();
-
       chatAbortControllerRef.current = controller;
 
-      const generatedTitleRef: { current: string | null } = {
-        current: null,
-      };
-
+      streamErrorRef.current = false;
+      streamingAssistantIdRef.current = null;
       setErrorMessage(null);
       setIsGenerating(true);
       setStatus({
@@ -549,18 +582,13 @@ export function ChatConversationContent({
         content: query,
         createdAt: getCurrentMessageDate(),
       };
-
       setMessages((previous) => [...previous, userMessage]);
-
       setInput("");
-
       requestAnimationFrame(() => {
         if (textareaRef.current) {
           textareaRef.current.style.height = "auto";
         }
       });
-
-      streamingAssistantIdRef.current = null;
 
       try {
         const response = await fetch("/api/chat", {
@@ -577,19 +605,28 @@ export function ChatConversationContent({
         });
 
         if (!response.ok) {
-          let message = "Failed to generate a response.";
-
+          let errorPayload: ChatErrorPayload | null = null;
           try {
-            const errorPayload = await response.json();
-
-            message =
-              errorPayload?.message ||
-              errorPayload?.error ||
-              errorPayload?.data?.message ||
-              message;
+            const parsed = await response.json();
+            errorPayload = extractErrorPayload(parsed);
           } catch {}
-
-          throw new Error(message);
+          const retryAfter =
+            errorPayload?.retryAfter ?? getRetryAfterFromResponse(response);
+          const rateLimited =
+            response.status === 429 ||
+            errorPayload?.code === "AI_RATE_LIMITED" ||
+            isRateLimitError({
+              code: errorPayload?.code,
+              message: errorPayload?.message,
+            });
+          if (rateLimited) {
+            streamErrorRef.current = true;
+            throw new Error(getRateLimitMessage(retryAfter));
+          }
+          throw new Error(
+            errorPayload?.message ||
+              "NEXUS could not generate a response. Please try again.",
+          );
         }
 
         if (!response.body) {
@@ -598,82 +635,65 @@ export function ChatConversationContent({
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-
         let buffer = "";
 
         while (true) {
           const { value, done } = await reader.read();
-
           if (done) {
             break;
           }
-
           if (controller.signal.aborted) {
             break;
           }
-
           buffer += decoder.decode(value, {
             stream: true,
           });
-
           const lines = buffer.split("\n");
-
           buffer = lines.pop() || "";
 
           for (const line of lines) {
             if (controller.signal.aborted) {
               break;
             }
-
             const trimmedLine = line.trim();
-
             if (!trimmedLine) {
               continue;
             }
-
             try {
               const parsedEvent = parseStreamLine(trimmedLine);
-
               if (!parsedEvent) {
                 continue;
               }
-
-              handleStreamEvent(
-                parsedEvent as ChatStreamEvent,
-                generatedTitleRef,
-              );
-
+              handleStreamEvent(parsedEvent as ChatStreamEvent);
               if (parsedEvent.type === "error") {
                 break;
               }
             } catch (error) {
-              console.error(
-                "[Chat Stream] Failed to parse stream event:",
-                error,
-              );
+              console.error("[Chat Stream] Failed to parse event:", error);
             }
           }
 
           scrollToBottom("smooth");
+
+          if (streamErrorRef.current) {
+            break;
+          }
         }
 
         buffer += decoder.decode();
 
-        if (!controller.signal.aborted && buffer.trim()) {
+        if (
+          !controller.signal.aborted &&
+          buffer.trim() &&
+          !streamErrorRef.current
+        ) {
           try {
             const parsedEvent = parseStreamLine(buffer.trim());
-
             if (parsedEvent) {
-              handleStreamEvent(
-                parsedEvent as ChatStreamEvent,
-                generatedTitleRef,
-              );
+              handleStreamEvent(parsedEvent as ChatStreamEvent);
             }
           } catch (error) {
-            console.error(
-              "[Chat Stream] Failed to parse final stream event:",
-              error,
-            );
+            console.error("[Chat Stream] Failed to parse final event:", error);
           }
         }
 
@@ -681,12 +701,11 @@ export function ChatConversationContent({
           return;
         }
 
-        if (generatedTitleRef.current) {
-          await persistConversationTitle(generatedTitleRef.current);
+        if (streamErrorRef.current) {
+          return;
         }
 
         await refreshMessages();
-
         setIsGenerating(false);
         setStatus(null);
         setCompletedNodes([]);
@@ -699,21 +718,31 @@ export function ChatConversationContent({
           return;
         }
 
-        console.error("[Chat Stream] Failed to generate response:", error);
+        if (isRateLimitError(error) || streamErrorRef.current) {
+          setErrorMessage(
+            error instanceof Error && error.message && !isRateLimitError(error)
+              ? error.message
+              : getRateLimitMessage(),
+          );
+          setIsGenerating(false);
+          setStatus(null);
+          setCompletedNodes([]);
+          return;
+        }
 
+        console.error("[Chat Stream] Failed:", error);
         setErrorMessage(
           error instanceof Error && error.message
             ? error.message
             : "Something went wrong while generating the response.",
         );
-
         setIsGenerating(false);
         setStatus(null);
+        setCompletedNodes([]);
       } finally {
         if (chatAbortControllerRef.current === controller) {
           chatAbortControllerRef.current = null;
         }
-
         streamingAssistantIdRef.current = null;
       }
     },
@@ -722,7 +751,6 @@ export function ChatConversationContent({
       handleStreamEvent,
       input,
       isGenerating,
-      persistConversationTitle,
       refreshMessages,
       scrollToBottom,
     ],
@@ -730,13 +758,10 @@ export function ChatConversationContent({
 
   const handleStopGeneration = useCallback(() => {
     chatAbortControllerRef.current?.abort();
-
     chatAbortControllerRef.current = null;
-
     setIsGenerating(false);
     setStatus(null);
     setCompletedNodes([]);
-
     streamingAssistantIdRef.current = null;
   }, []);
 
@@ -745,23 +770,16 @@ export function ChatConversationContent({
       if (event.key !== "Enter") {
         return;
       }
-
       if (event.shiftKey) {
         return;
       }
-
       event.preventDefault();
-
       if (!isGenerating && input.trim()) {
         void handleSubmit();
       }
     },
     [handleSubmit, input, isGenerating],
   );
-
-  const toggleMobileTitle = useCallback(() => {
-    setShowMobileTitle((previous) => !previous);
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -775,47 +793,28 @@ export function ChatConversationContent({
       <header className="relative flex h-14 shrink-0 items-center justify-between border-b border-[#202525] px-4 md:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <NexusAvatar size="sm" />
-
           <div className="hidden min-w-0 md:block">
             <h1 className="truncate text-sm font-semibold text-white">
               {title}
             </h1>
-
             <p className="text-[11px] text-[#7f8b87]">NEXUS AI</p>
           </div>
-
-          <div
-            // type="button"
-            // onClick={toggleMobileTitle}
-            className="flex min-w-0 items-center gap-1 md:hidden"
-            aria-expanded={showMobileTitle}
-            aria-label="Toggle conversation title"
-          >
-            <span className="max-w-45 truncate text-sm font-semibold text-white">
+          <div className="flex min-w-0 items-center md:hidden">
+            <span className="max-w-52 truncate text-sm font-semibold text-white">
               {title}
             </span>
-
-            
           </div>
         </div>
-
         <div className="flex items-center gap-2">
           {isGenerating && (
             <div className="flex items-center gap-2 rounded-full border border-[#303737] bg-[#111515] px-3 py-1.5">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#23ce6b]" />
-
               <span className="hidden text-[11px] text-[#a8b2ae] sm:inline">
                 {status?.message || "Thinking"}
               </span>
             </div>
           )}
         </div>
-
-        {showMobileTitle && (
-          <div className="absolute left-0 right-0 top-full z-20 border-b border-[#202525] bg-[#0b0d0d] px-4 py-3 shadow-xl md:hidden">
-            <p className="truncate text-xs text-[#8d9995]">{title}</p>
-          </div>
-        )}
       </header>
 
       <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto">
@@ -827,14 +826,17 @@ export function ChatConversationContent({
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#23ce6b]" />
                   <span
                     className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#23ce6b]"
-                    style={{ animationDelay: "120ms" }}
+                    style={{
+                      animationDelay: "120ms",
+                    }}
                   />
                   <span
                     className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#23ce6b]"
-                    style={{ animationDelay: "240ms" }}
+                    style={{
+                      animationDelay: "240ms",
+                    }}
                   />
                 </div>
-
                 <span className="text-xs text-[#7f8b87]">
                   Loading conversation...
                 </span>
@@ -844,14 +846,18 @@ export function ChatConversationContent({
             <>
               {visibleErrorMessage && (
                 <div className="mb-6 flex items-start gap-3 rounded-xl border border-[#3a2929] bg-[#171010] px-4 py-3">
-                  <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <X className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
-
+                  <NexusAvatar size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="text-xs font-medium text-[#9aa6a2]">
+                        NEXUS
+                      </span>
+                      <span className="text-[10px] text-[#6d7773]">System</span>
+                    </div>
                     <p className="text-sm leading-6 text-[#d8b8b8]">
                       {visibleErrorMessage}
                     </p>
                   </div>
-
                   <button
                     type="button"
                     onClick={() => setErrorMessage(null)}
@@ -868,11 +874,9 @@ export function ChatConversationContent({
                   <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#26302c] bg-[#111615] shadow-[0_0_30px_rgba(35,206,107,0.06)]">
                     <Sparkles className="h-6 w-6 text-[#23ce6b]" />
                   </div>
-
                   <h2 className="text-lg font-semibold text-white">
                     How can I help?
                   </h2>
-
                   <p className="mt-2 max-w-md text-sm leading-6 text-[#7f8b87]">
                     Ask anything. NEXUS will reason through the request and
                     stream the response here.
@@ -883,13 +887,7 @@ export function ChatConversationContent({
               {messages.length > 0 && (
                 <div className="space-y-6">
                   {messages.map((message) => (
-                    <MessageBubble
-                      key={message.id}
-                      message={{
-                        ...message,
-                        content: message.content,
-                      }}
-                    />
+                    <MessageBubble key={message.id} message={message} />
                   ))}
                 </div>
               )}
@@ -897,40 +895,38 @@ export function ChatConversationContent({
               {isGenerating && status && (
                 <div className="mt-5 flex items-start gap-3">
                   <NexusAvatar size="sm" />
-
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 flex items-center gap-2">
                       <span className="text-xs font-medium text-[#9aa6a2]">
                         NEXUS
                       </span>
-
                       <span className="text-[10px] text-[#56615e]">
                         {formatNodeName(status.node)}
                       </span>
                     </div>
-
                     <div className="flex items-center gap-2 rounded-xl border border-[#202828] bg-[#101313] px-3 py-2.5">
                       <span className="text-[#23ce6b]">
                         {getStatusIcon(status.type)}
                       </span>
-
                       <span className="text-xs text-[#8e9995]">
                         {status.message}
                       </span>
-
                       <span className="ml-1 flex items-center gap-1">
                         <span className="h-1 w-1 animate-pulse rounded-full bg-[#6b7773]" />
                         <span
                           className="h-1 w-1 animate-pulse rounded-full bg-[#6b7773]"
-                          style={{ animationDelay: "120ms" }}
+                          style={{
+                            animationDelay: "120ms",
+                          }}
                         />
                         <span
                           className="h-1 w-1 animate-pulse rounded-full bg-[#6b7773]"
-                          style={{ animationDelay: "240ms" }}
+                          style={{
+                            animationDelay: "240ms",
+                          }}
                         />
                       </span>
                     </div>
-
                     {completedNodes.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {completedNodes.map((node) => (
@@ -939,7 +935,6 @@ export function ChatConversationContent({
                             className="flex items-center gap-1 rounded-md border border-[#242c29] bg-[#101413] px-2 py-1"
                           >
                             <Check className="h-3 w-3 text-[#23ce6b]" />
-
                             <span className="text-[10px] text-[#697571]">
                               {formatNodeName(node)}
                             </span>
@@ -974,13 +969,11 @@ export function ChatConversationContent({
                 maxLength={MAX_MESSAGE_LENGTH}
                 className="block max-h-48 min-h-14 w-full resize-none overflow-y-auto bg-transparent px-4 pb-14 pt-4 text-sm leading-6 text-[#edf5fc] outline-none placeholder:text-[#697171] disabled:cursor-not-allowed disabled:opacity-50"
               />
-
               <div className="pointer-events-none absolute bottom-3 left-4 right-3 flex items-center justify-between">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="hidden truncate text-[10px] text-[#5c6763] sm:inline">
                     Enter to send · Shift + Enter for newline
                   </span>
-
                   {input.length > MAX_MESSAGE_LENGTH * 0.9 && (
                     <span className="text-[10px] text-[#8d7777]">
                       {input.length.toLocaleString()}/
@@ -988,7 +981,6 @@ export function ChatConversationContent({
                     </span>
                   )}
                 </div>
-
                 {isGenerating ? (
                   <button
                     type="button"
@@ -1013,7 +1005,6 @@ export function ChatConversationContent({
               </div>
             </div>
           </form>
-
           <p className="mt-2 text-center text-[10px] leading-4 text-[#4b5652]">
             NEXUS can make mistakes. Verify important information.
           </p>

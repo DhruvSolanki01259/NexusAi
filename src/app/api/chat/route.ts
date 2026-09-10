@@ -1,5 +1,4 @@
 import { getAuthenticatedUser } from "@/lib/api/getAuthenticatedUser";
-import { getConversationConfig } from "@/lib/api/getConversationConfig";
 import { getErrorDetails } from "@/lib/api/errorHandler";
 import { errorResponse } from "@/lib/api/apiResponse";
 import { workflow } from "@/langgraph/workflow";
@@ -8,36 +7,26 @@ import {
   extractMessageContent,
   getNodeLabel,
 } from "@/lib/api/streamHelper";
+
 import Message from "@/lib/models/message.model";
+import PersonalizationModel from "@/lib/models/personalization.model";
+
 import { HumanMessage } from "langchain";
 import { NextRequest } from "next/server";
-import Personalization from "@/lib/models/personalization.model";
+import {
+  getConversationConfig,
+  getStreamNodeName,
+  isChatRequestBody,
+  Personalization,
+  StreamEvent,
+} from "@/lib/api/chatUtils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-interface ChatRequestBody {
-  conversationId?: string;
-  query?: string;
-}
-
-interface StreamEvent {
-  type: "token" | "status" | "done" | "error";
-  content?: string;
-  node?: string;
-  message?: string;
-  conversationId?: string;
-  title?: string;
-}
-
-function isChatRequestBody(body: unknown): body is ChatRequestBody {
-  return typeof body === "object" && body !== null;
-}
-
 export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthenticatedUser();
-
     if ("error" in auth) {
       return auth.error;
     }
@@ -45,7 +34,6 @@ export async function POST(request: NextRequest) {
     const userId = auth.userId;
 
     let body: unknown;
-
     try {
       body = await request.json();
     } catch {
@@ -66,7 +54,6 @@ export async function POST(request: NextRequest) {
 
     const conversationId =
       typeof body.conversationId === "string" ? body.conversationId.trim() : "";
-
     if (!conversationId) {
       return errorResponse("Conversation ID is required", 400, {
         name: "ValidationError",
@@ -75,9 +62,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const userQuery = body.query;
-
-    if (typeof userQuery !== "string" || !userQuery.trim()) {
+    const userQuery = typeof body.query === "string" ? body.query.trim() : "";
+    if (!userQuery) {
       return errorResponse("Query is required", 400, {
         name: "ValidationError",
         message: "A non-empty query is required.",
@@ -85,15 +71,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const query = userQuery.trim();
-
+    // Save the user's message
     try {
-      // User message creation
       await Message.create({
         userId,
         conversationId,
         role: "user",
-        content: query,
+        content: userQuery,
       });
     } catch (error) {
       const { name, message, cause } = getErrorDetails(error);
@@ -102,6 +86,8 @@ export async function POST(request: NextRequest) {
         name,
         message,
         cause,
+        conversationId,
+        userId,
       });
 
       return errorResponse("Failed to save message", 500, {
@@ -111,34 +97,28 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Load personalization
     let config;
-
     try {
-      const personalization = await Personalization.find({ userId }).lean();
-      const {
-        enabled,
-        nickname,
-        profession,
-        interests,
-        responseStyle,
-        responseLength,
-        technicalLevel,
-        emojis,
-        structuredResponses,
-        instructions,
-      } = personalization;
-      config = getConversationConfig(conversationId, userId, {
-        enabled,
-        nickname,
-        profession,
-        interests,
-        responseStyle,
-        responseLength,
-        technicalLevel,
-        emojis,
-        structuredResponses,
-        instructions,
-      });
+      const personalizationDocument = await PersonalizationModel.findOne({
+        userId,
+      }).lean();
+
+      const personalization: Personalization = {
+        enabled: personalizationDocument?.enabled ?? false,
+        nickname: personalizationDocument?.nickname ?? "",
+        profession: personalizationDocument?.profession ?? "",
+        interests: personalizationDocument?.interests ?? "",
+        responseStyle: personalizationDocument?.responseStyle ?? "",
+        responseLength: personalizationDocument?.responseLength ?? "",
+        technicalLevel: personalizationDocument?.technicalLevel ?? "",
+        emojis: personalizationDocument?.emojis ?? false,
+        structuredResponses:
+          personalizationDocument?.structuredResponses ?? false,
+        instructions: personalizationDocument?.instructions ?? "",
+      };
+
+      config = getConversationConfig(conversationId, userId, personalization);
     } catch (error) {
       const { name, message, cause } = getErrorDetails(error);
 
@@ -146,6 +126,8 @@ export async function POST(request: NextRequest) {
         name,
         message,
         cause,
+        conversationId,
+        userId,
       });
 
       return errorResponse("Failed to initialize conversation", 500, {
@@ -155,12 +137,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Start LangGraph stream
     let result;
-
     try {
       result = await workflow.stream(
         {
-          messages: [new HumanMessage(query)],
+          messages: [new HumanMessage(userQuery)],
         },
         config,
       );
@@ -171,6 +153,8 @@ export async function POST(request: NextRequest) {
         name,
         message,
         cause,
+        conversationId,
+        userId,
       });
 
       return errorResponse("Failed to invoke workflow", 500, {
@@ -181,11 +165,11 @@ export async function POST(request: NextRequest) {
     }
 
     const encoder = new TextEncoder();
-
     const readable = new ReadableStream({
       async start(controller) {
         let assistantContent = "";
         let generatedTitle = "";
+
         let streamClosed = false;
 
         const closeStream = () => {
@@ -197,7 +181,9 @@ export async function POST(request: NextRequest) {
 
           try {
             controller.close();
-          } catch {}
+          } catch {
+            // Stream may already be closed by the runtime.
+          }
         };
 
         const sendEvent = (event: StreamEvent) => {
@@ -209,6 +195,7 @@ export async function POST(request: NextRequest) {
             controller.enqueue(encodeEvent(encoder, event));
           } catch (error) {
             console.error("Failed to enqueue stream event:", error);
+
             streamClosed = true;
           }
         };
@@ -220,13 +207,16 @@ export async function POST(request: NextRequest) {
 
           try {
             controller.close();
-          } catch {}
+          } catch {
+            // Stream is already closed.
+          }
         };
 
         request.signal.addEventListener("abort", handleAbort, {
           once: true,
         });
 
+        // Tell the frontend that the graph has started.
         sendEvent({
           type: "status",
           node: "workflow",
@@ -250,13 +240,19 @@ export async function POST(request: NextRequest) {
                 continue;
               }
 
-              const [message] = data;
+              const nodeName = getStreamNodeName(data);
 
-              if (!message) {
+              if (nodeName && nodeName !== "chat_node") {
                 continue;
               }
 
-              const token = extractMessageContent(message.content);
+              const [messageChunk] = data;
+
+              if (!messageChunk) {
+                continue;
+              }
+
+              const token = extractMessageContent(messageChunk.content);
 
               if (!token) {
                 continue;
@@ -268,6 +264,8 @@ export async function POST(request: NextRequest) {
                 type: "token",
                 content: token,
               });
+
+              continue;
             }
 
             if (mode === "updates") {
@@ -282,18 +280,30 @@ export async function POST(request: NextRequest) {
                   break;
                 }
 
+                // Title generated by TitleNode
                 if (
                   typeof nodeData === "object" &&
                   nodeData !== null &&
                   "title" in nodeData
                 ) {
-                  const title = (nodeData as { title?: unknown }).title;
+                  const title = (
+                    nodeData as {
+                      title?: unknown;
+                    }
+                  ).title;
 
                   if (typeof title === "string" && title.trim()) {
                     generatedTitle = title.trim();
+
+                    sendEvent({
+                      type: "title",
+                      title: generatedTitle,
+                      conversationId,
+                    });
                   }
                 }
 
+                // Node status
                 const label = getNodeLabel(nodeName);
 
                 sendEvent({
@@ -305,31 +315,45 @@ export async function POST(request: NextRequest) {
             }
           }
 
+          // Client cancelled the request
           if (request.signal.aborted) {
             console.log(`Client cancelled chat request: ${conversationId}`);
 
             return;
           }
 
+          // Validate final assistant response
           const finalAssistantContent = assistantContent.trim();
-
           if (!finalAssistantContent) {
             throw new Error("No assistant response was generated.");
           }
 
-          // Assistant message creation
-          await Message.create({
-            userId,
-            conversationId,
-            role: "assistant",
-            content: finalAssistantContent,
-          });
+          // Save completed assistant response
+          try {
+            await Message.create({
+              userId,
+              conversationId,
+              role: "assistant",
+              content: finalAssistantContent,
+            });
+          } catch (error) {
+            const { name, message, cause } = getErrorDetails(error);
 
-          // Send title to frontend
+            console.error("Failed to save assistant message:", {
+              name,
+              message,
+              cause,
+              conversationId,
+              userId,
+            });
+
+            throw error;
+          }
+
+          // Tell frontend generation is complete
           sendEvent({
             type: "done",
             conversationId,
-            ...(generatedTitle ? { title: generatedTitle } : {}),
           });
 
           closeStream();
@@ -366,13 +390,14 @@ export async function POST(request: NextRequest) {
 
     return new Response(readable, {
       status: 200,
+
       headers: {
         "Content-Type": "application/x-ndjson; charset=utf-8",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         Pragma: "no-cache",
         Expires: "0",
-        Connection: "keep-alive",
         "X-Accel-Buffering": "no",
+        Connection: "keep-alive",
       },
     });
   } catch (error) {

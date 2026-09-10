@@ -1,11 +1,8 @@
 "use client";
-
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-
+import { useCallback, useEffect, useState } from "react";
 import { ChevronUp, Menu, Plus, Search, X } from "lucide-react";
-
 import { authClient } from "@/lib/authentication/auth-client";
 import { getSessionClient } from "@/lib/authentication/session-client";
 import {
@@ -15,13 +12,11 @@ import {
   NoSearchResults,
   ProfileMenu,
 } from "./SidebarUtils";
-
 export interface Conversation {
   _id: string;
   title: string;
   updatedAt?: string;
 }
-
 type ConversationAction =
   | {
       type: "rename";
@@ -32,55 +27,44 @@ type ConversationAction =
       conversation: Conversation;
     }
   | null;
-
+interface ConversationTitleUpdatedDetail {
+  conversationId?: string;
+  title?: string;
+}
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
-
   const [conversations, setConversations] = useState<Conversation[]>([]);
-
   const [conversationAction, setConversationAction] =
     useState<ConversationAction>(null);
-
-  // Search state
   const [searchQuery, setSearchQuery] = useState("");
-
   const user = getSessionClient();
-
   const userName = user?.name || "User";
   const userEmail = user?.email || "";
   const userInitial = userName.charAt(0).toUpperCase();
-
-  // Load conversations
   useEffect(() => {
     let isMounted = true;
-
     const loadConversations = async () => {
       try {
         const response = await fetch("/api/conversations", {
           method: "GET",
           cache: "no-store",
         });
-
         if (!response.ok) {
           throw new Error("Failed to fetch conversations");
         }
-
         const result = await response.json();
-
         if (isMounted) {
           setConversations(Array.isArray(result?.data) ? result.data : []);
         }
       } catch (error) {
         console.error("Failed to load conversations:", error);
-
         if (isMounted) {
           setConversations([]);
         }
@@ -90,72 +74,138 @@ export default function Sidebar() {
         }
       }
     };
-
     void loadConversations();
-
     return () => {
       isMounted = false;
     };
   }, []);
-
-  // Filter conversations in real time
+  const persistConversationTitle = useCallback(
+    async (conversationId: string, newTitle: string) => {
+      const trimmedTitle = newTitle.trim();
+      if (!conversationId || !trimmedTitle) {
+        return;
+      }
+      try {
+        const response = await fetch(
+          `/api/conversations/${encodeURIComponent(conversationId)}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              title: trimmedTitle,
+            }),
+          },
+        );
+        if (!response.ok) {
+          let message = "Failed to persist conversation title.";
+          try {
+            const errorPayload = await response.json();
+            message = errorPayload?.message || errorPayload?.error || message;
+          } catch {}
+          throw new Error(message);
+        }
+        const result = await response.json();
+        const updatedConversation = result?.data;
+        if (updatedConversation?._id) {
+          setConversations((previous) =>
+            previous.map((conversation) =>
+              conversation._id === conversationId
+                ? {
+                    ...conversation,
+                    ...updatedConversation,
+                    title: updatedConversation.title?.trim() || trimmedTitle,
+                  }
+                : conversation,
+            ),
+          );
+        }
+      } catch (error) {
+        console.error("[Sidebar] Failed to persist conversation title:", error);
+      }
+    },
+    [],
+  );
+  useEffect(() => {
+    const handleConversationTitleUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<ConversationTitleUpdatedDetail>;
+      const conversationId = customEvent.detail?.conversationId?.trim();
+      const newTitle = customEvent.detail?.title?.trim();
+      if (!conversationId || !newTitle) {
+        console.warn(
+          "[Sidebar] Invalid conversation title event:",
+          customEvent.detail,
+        );
+        return;
+      }
+      console.log("[Sidebar] Conversation title event received:", {
+        conversationId,
+        title: newTitle,
+      });
+      setConversations((previous) =>
+        previous.map((conversation) =>
+          conversation._id === conversationId
+            ? {
+                ...conversation,
+                title: newTitle,
+              }
+            : conversation,
+        ),
+      );
+      void persistConversationTitle(conversationId, newTitle);
+    };
+    window.addEventListener(
+      "conversation-title-updated",
+      handleConversationTitleUpdated,
+    );
+    return () => {
+      window.removeEventListener(
+        "conversation-title-updated",
+        handleConversationTitleUpdated,
+      );
+    };
+  }, [persistConversationTitle]);
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
-
   const filteredConversations = normalizedSearchQuery
     ? conversations.filter((conversation) =>
         conversation.title.toLowerCase().includes(normalizedSearchQuery),
       )
     : conversations;
-
   const closeMobileSidebar = () => {
     setIsMobileOpen(false);
     setIsProfileOpen(false);
   };
-
   const closeAllMenus = () => {
     setIsProfileOpen(false);
     setConversationAction(null);
   };
-
-  // New conversation
   const handleNewChat = async () => {
-    if (isCreatingConversation) return;
-
-    closeAllMenus();
-
-    const latestConversation = conversations[0];
-
-    if (latestConversation?.title === "New Conversation") {
-      closeMobileSidebar();
-
-      router.push(`/chat/${latestConversation._id}`);
-
+    if (isCreatingConversation) {
       return;
     }
-
+    closeAllMenus();
+    const latestConversation = conversations[0];
+    if (latestConversation?.title === "New Conversation") {
+      closeMobileSidebar();
+      router.push(`/chat/${latestConversation._id}`);
+      return;
+    }
     try {
       setIsCreatingConversation(true);
-
       const response = await fetch("/api/conversations", {
         method: "POST",
       });
-
       if (!response.ok) {
         throw new Error("Failed to create new conversation");
       }
-
       const result = await response.json();
-
       const newConversation = result?.data;
-
       if (!newConversation?._id) {
         throw new Error("Invalid conversation returned from server");
       }
-
-      setConversations((prev) => [newConversation, ...prev]);
-
+      setConversations((previous) => [newConversation, ...previous]);
       closeMobileSidebar();
-
       router.push(`/chat/${newConversation._id}`);
     } catch (error) {
       console.error("Failed to create conversation:", error);
@@ -163,85 +213,70 @@ export default function Sidebar() {
       setIsCreatingConversation(false);
     }
   };
-
-  // Rename conversation
   const handleRenameConversation = async (
     conversationId: string,
     newTitle: string,
   ) => {
     const trimmedTitle = newTitle.trim();
-
     if (!trimmedTitle) {
       throw new Error("Conversation title cannot be empty");
     }
-
-    const response = await fetch(`/api/conversations/${conversationId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
+    const response = await fetch(
+      `/api/conversations/${encodeURIComponent(conversationId)}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: trimmedTitle,
+        }),
       },
-      body: JSON.stringify({
-        title: trimmedTitle,
-      }),
-    });
-
+    );
     if (!response.ok) {
       throw new Error("Failed to rename conversation");
     }
-
     const result = await response.json();
-
     const updatedConversation = result?.data;
-
     if (!updatedConversation?._id) {
       throw new Error("Invalid conversation returned from server");
     }
-
-    setConversations((prev) =>
-      prev.map((conversation) =>
+    setConversations((previous) =>
+      previous.map((conversation) =>
         conversation._id === conversationId
           ? updatedConversation
           : conversation,
       ),
     );
   };
-
-  // Delete conversation
   const handleDeleteConversation = async (conversationId: string) => {
     try {
-      // delete all messages
-      const messagesResponse = await fetch(`/api/messages/${conversationId}`, {
-        method: "DELETE",
-      });
-
-      if (!messagesResponse.ok) {
-        const errorData = await messagesResponse.json().catch(() => null);
-
-        throw new Error(
-          errorData?.message || "Failed to delete conversation messages",
-        );
-      }
-
-      // delete the conversation
-      const conversationResponse = await fetch(
-        `/api/conversations/${conversationId}`,
+      const messagesResponse = await fetch(
+        `/api/messages/${encodeURIComponent(conversationId)}`,
         {
           method: "DELETE",
         },
       );
-
+      if (!messagesResponse.ok) {
+        const errorData = await messagesResponse.json().catch(() => null);
+        throw new Error(
+          errorData?.message || "Failed to delete conversation messages",
+        );
+      }
+      const conversationResponse = await fetch(
+        `/api/conversations/${encodeURIComponent(conversationId)}`,
+        {
+          method: "DELETE",
+        },
+      );
       if (!conversationResponse.ok) {
         const errorData = await conversationResponse.json().catch(() => null);
-
         throw new Error(errorData?.message || "Failed to delete conversation");
       }
-
-      setConversations((prev) =>
-        prev.filter((conversation) => conversation._id !== conversationId),
+      setConversations((previous) =>
+        previous.filter((conversation) => conversation._id !== conversationId),
       );
-
       setConversationAction(null);
-
       if (pathname === `/chat/${conversationId}`) {
         router.push("/chat");
         router.refresh();
@@ -250,52 +285,42 @@ export default function Sidebar() {
       console.error("Failed to delete conversation:", error);
     }
   };
-
-  // Logout
   const handleLogout = async () => {
-    if (isLoggingOut) return;
-
+    if (isLoggingOut) {
+      return;
+    }
     try {
       setIsLoggingOut(true);
-
       closeAllMenus();
       setIsMobileOpen(false);
-
       await authClient.signOut();
-
       router.replace("/");
       router.refresh();
     } catch (error) {
       console.error("Logout failed:", error);
-
       setIsLoggingOut(false);
     }
   };
-
   const openRenameModal = (conversation: Conversation) => {
     setIsProfileOpen(false);
-
     setConversationAction({
       type: "rename",
       conversation,
     });
   };
-
   const openDeleteModal = (conversation: Conversation) => {
     setIsProfileOpen(false);
-
     setConversationAction({
       type: "delete",
       conversation,
     });
   };
-
   const closeConversationModal = () => {
     setConversationAction(null);
   };
-
   return (
     <>
+      {}
       <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-[#303737] bg-[#0b0d0d] px-3 md:hidden">
         <button
           type="button"
@@ -305,17 +330,14 @@ export default function Sidebar() {
         >
           <Menu size={20} strokeWidth={1.8} />
         </button>
-
         <Link href="/chat" className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#23ce6b] text-xs font-bold text-[#0b0d0d]">
             N
           </div>
-
           <span className="text-sm font-semibold tracking-tight text-[#edf5fc]">
             NEXUS AI
           </span>
         </Link>
-
         <button
           type="button"
           onClick={handleNewChat}
@@ -326,7 +348,6 @@ export default function Sidebar() {
           <Plus size={19} strokeWidth={1.8} />
         </button>
       </div>
-
       {isMobileOpen && (
         <button
           type="button"
@@ -335,7 +356,7 @@ export default function Sidebar() {
           className="fixed inset-0 z-40 cursor-default bg-black/60 md:hidden"
         />
       )}
-
+      {}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex h-dvh min-h-0 w-70 flex-col border-r border-[#414949] bg-[#0b0d0d] text-[#edf5fc] transition-[width,transform] duration-300 ease-in-out ${
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
@@ -343,6 +364,7 @@ export default function Sidebar() {
           isCollapsed ? "md:w-16" : "md:w-70"
         }`}
       >
+        {}
         <div
           className={`flex h-16 shrink-0 items-center border-b border-[#1f2424] ${
             isCollapsed
@@ -360,18 +382,15 @@ export default function Sidebar() {
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#23ce6b] text-sm font-bold text-[#0b0d0d] transition-transform duration-200 group-hover:scale-105">
               N
             </div>
-
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold tracking-tight text-[#edf5fc]">
                 NEXUS AI
               </p>
-
               <p className="truncate text-[10px] text-[#697171]">
                 Memory. Reasoning. Tools.
               </p>
             </div>
           </Link>
-
           <button
             type="button"
             onClick={() => {
@@ -387,7 +406,6 @@ export default function Sidebar() {
               <X size={18} strokeWidth={1.8} />
             )}
           </button>
-
           <button
             type="button"
             onClick={closeMobileSidebar}
@@ -397,7 +415,7 @@ export default function Sidebar() {
             <X size={18} strokeWidth={1.8} />
           </button>
         </div>
-
+        {}
         <div className={`shrink-0 px-3 pt-3 ${isCollapsed ? "md:px-2" : ""}`}>
           <button
             type="button"
@@ -413,13 +431,12 @@ export default function Sidebar() {
             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#23ce6b] text-[#0b0d0d]">
               <Plus size={15} strokeWidth={2.5} />
             </div>
-
             <span className={isCollapsed ? "md:hidden" : ""}>
               {isCreatingConversation ? "Creating..." : "New chat"}
             </span>
           </button>
         </div>
-
+        {}
         <div className={`shrink-0 px-3 pt-3 ${isCollapsed ? "md:hidden" : ""}`}>
           <div className="relative">
             <Search
@@ -427,7 +444,6 @@ export default function Sidebar() {
               strokeWidth={1.8}
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#697171]"
             />
-
             <input
               type="text"
               value={searchQuery}
@@ -436,7 +452,6 @@ export default function Sidebar() {
               aria-label="Search conversations"
               className="h-9 w-full rounded-lg border border-transparent bg-[#111515] pl-9 pr-3 text-sm text-[#edf5fc] outline-none transition-colors placeholder:text-[#5f6666] focus:border-[#414949] focus:bg-[#161a1a]"
             />
-
             {searchQuery && (
               <button
                 type="button"
@@ -449,7 +464,7 @@ export default function Sidebar() {
             )}
           </div>
         </div>
-
+        {}
         <div
           className={`min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-5 ${
             isCollapsed ? "md:hidden" : ""
@@ -460,7 +475,6 @@ export default function Sidebar() {
               Conversations
             </span>
           </div>
-
           {isLoadingConversations ? (
             <div className="space-y-1">
               <div className="h-10 animate-pulse rounded-lg bg-[#111515]" />
@@ -491,7 +505,7 @@ export default function Sidebar() {
             </div>
           )}
         </div>
-
+        {}
         {conversationAction && (
           <div className={isCollapsed ? "md:hidden" : ""}>
             <ConversationActionPanel
@@ -503,7 +517,7 @@ export default function Sidebar() {
             />
           </div>
         )}
-
+        {}
         <div
           className={`relative mt-auto shrink-0 border-t border-[#303737] p-3 ${
             isCollapsed ? "md:px-2" : ""
@@ -521,7 +535,6 @@ export default function Sidebar() {
               />
             </div>
           )}
-
           <button
             type="button"
             onClick={() => {
@@ -536,7 +549,6 @@ export default function Sidebar() {
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#303737] text-sm font-semibold text-[#23ce6b]">
               {userInitial}
             </div>
-
             <div
               className={`min-w-0 flex-1 text-left ${
                 isCollapsed ? "md:hidden" : ""
@@ -545,10 +557,8 @@ export default function Sidebar() {
               <p className="truncate text-sm font-medium text-[#edf5fc]">
                 {userName}
               </p>
-
               <p className="truncate text-xs text-[#697171]">{userEmail}</p>
             </div>
-
             <ChevronUp
               size={16}
               strokeWidth={1.8}
