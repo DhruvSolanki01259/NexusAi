@@ -1,10 +1,4 @@
-interface StreamEvent {
-  type: "token" | "status" | "done" | "error";
-  content?: string;
-  node?: string;
-  message?: string;
-  conversationId?: string;
-}
+import type { StreamEvent } from "@/lib/api/chatUtils";
 
 export const extractMessageContent = (content: unknown): string => {
   if (typeof content === "string") {
@@ -70,7 +64,7 @@ export const getNodeLabel = (nodeName: string): string => {
   }
 
   return nodeName
-    .replace(/[_-]/g, " ")
+    .replace(/[\_-]/g, " ")
     .replace(/\b\w/g, (character) => character.toUpperCase())
     .replace(/\s+/g, " ")
     .trim();

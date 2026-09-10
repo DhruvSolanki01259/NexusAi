@@ -1,4 +1,4 @@
-import { store } from "@/langgraph/workflow";
+import { store } from "@/langgraph/persistence/postgres";
 import { LONG_TERM_MEMORY_PROMPT } from "../prompts/long.term.memory.prompt";
 import { RunnableConfig } from "@langchain/core/runnables";
 

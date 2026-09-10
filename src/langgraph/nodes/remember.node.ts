@@ -5,7 +5,7 @@ import { rememberGroq } from "@/ai_components/models/groq-provider/groq";
 import { RememberSchema } from "@/ai_components/types/remember.memory.type";
 
 import { ChatState } from "../states/chat.state";
-import { store } from "../workflow";
+import { store } from "../persistence/postgres";
 import { shouldAnalyzeMemory } from "@/ai_components/utils/shouldAnalyzeMemory";
 
 const structuredModel = rememberGroq.withStructuredOutput(RememberSchema);
